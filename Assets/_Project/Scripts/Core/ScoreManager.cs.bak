@@ -1,0 +1,78 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace MetaEdu.Core
+{
+    public class ScoreManager : MonoBehaviour
+    {
+        public static ScoreManager Instance { get; private set; }
+
+        public int currentXP = 0;
+        public int currentLevel = 1;
+        public int totalScore = 0;
+        
+        private HashSet<string> unlockedBadges = new HashSet<string>();
+
+        public System.Action<int, int> OnXPChanged;
+        public System.Action<int> OnLevelUp;
+        public System.Action<string> OnBadgeUnlocked;
+
+        private void Awake()
+        {
+            if (Instance == null)
+            {
+                Instance = this;
+                DontDestroyOnLoad(gameObject);
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
+        }
+
+        public void AddXP(int amount)
+        {
+            currentXP += amount;
+            int nextLevelThreshold = currentLevel * 500;
+            
+            while (currentXP >= nextLevelThreshold)
+            {
+                currentXP -= nextLevelThreshold;
+                currentLevel++;
+                OnLevelUp?.Invoke(currentLevel);
+                nextLevelThreshold = currentLevel * 500;
+            }
+
+            OnXPChanged?.Invoke(currentXP, currentLevel);
+        }
+
+        public void AddScore(int amount)
+        {
+            totalScore += amount;
+        }
+
+        public void UnlockBadge(string badgeName)
+        {
+            if (!unlockedBadges.Contains(badgeName))
+            {
+                unlockedBadges.Add(badgeName);
+                OnBadgeUnlocked?.Invoke(badgeName);
+            }
+        }
+
+        public bool IsBadgeUnlocked(string badgeName)
+        {
+            return unlockedBadges.Contains(badgeName);
+        }
+
+        public List<string> GetUnlockedBadges()
+        {
+            return new List<string>(unlockedBadges);
+        }
+
+        public void SetUnlockedBadges(List<string> badges)
+        {
+            unlockedBadges = new HashSet<string>(badges);
+        }
+    }
+}

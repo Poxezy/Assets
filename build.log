@@ -1,0 +1,22 @@
+[Licensing::Module] Trying to connect to existing licensing client channel...
+Built from '6000.5/staging' branch; Version is '6000.5.3f1 (c2eb47b3a2a9) revision 12774215'; Using compiler version '194234433'; Build Type 'Release'
+OS: 'Windows 11  (10.0.26200) CoreSingleLanguage' Language: 'en' Physical Memory: 16160 MB
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-marke" at "2026-07-16T13:33:05.5084518Z"
+System  architecture: x64
+Process architecture: x64
+Date: 2026-07-16T13:33:05Z
+
+COMMAND LINE ARGUMENTS:
+C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe
+-batchmode
+-quit
+-projectPath
+C:\Users\marke\Downloads\Assets
+-buildWindows64Player
+C:\Users\marke\Downloads\Assets\Build\MetaEdu.exe
+-logFile
+C:\Users\marke\Downloads\Assets\build.log
+Successfully changed project path to: C:\Users\marke\Downloads\Assets
+C:/Users/marke/Downloads/Assets
+Exiting without the bug reporter. Application will terminate with return code 1

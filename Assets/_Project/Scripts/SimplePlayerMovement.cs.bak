@@ -1,0 +1,134 @@
+using UnityEngine;
+
+[RequireComponent(typeof(Rigidbody))]
+public class SimplePlayerMovement : MonoBehaviour
+{
+    [Header("Movement")]
+    [SerializeField] private float speed = 5f;
+
+    [Header("Mouse Look")]
+    [SerializeField] private Transform playerCamera;
+    [Tooltip("Sensitivitas normal: 1–5. Gunakan nilai kecil agar kamera stabil.")]
+    [SerializeField] private float mouseSensitivity = 2f;
+    [SerializeField] private float minimumLookAngle = -80f;
+    [SerializeField] private float maximumLookAngle = 80f;
+
+    [Header("Smoothing")]
+    [Tooltip("0 = tidak ada smoothing. Rekomendasi: 10–20 untuk gerakan halus.")]
+    [SerializeField] private float lookSmoothing = 15f;
+
+    private Rigidbody playerRigidbody;
+    private float cameraPitch;
+    private float cameraYaw;
+    private Vector3 moveDirection;
+    private Vector2 smoothLookDelta;
+
+    private void Awake()
+    {
+        playerRigidbody = GetComponent<Rigidbody>();
+
+        // Anti-jitter physics interpolation
+        playerRigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+
+        // Freeze rotation pada X & Z agar tidak tumbang
+        playerRigidbody.constraints =
+            RigidbodyConstraints.FreezeRotationX |
+            RigidbodyConstraints.FreezeRotationZ;
+
+        // Capture initial rotation
+        cameraYaw = transform.eulerAngles.y;
+    }
+
+    private void Start()
+    {
+        LockCursor();
+    }
+
+    private void Update()
+    {
+        if (Time.timeScale == 0f) return;
+
+        HandleMouseLook();
+        ReadMovementInput();
+    }
+
+    private void FixedUpdate()
+    {
+        if (Time.timeScale == 0f) return;
+
+        ApplyMovement();
+    }
+
+    private void ReadMovementInput()
+    {
+        float horizontal = Input.GetAxisRaw("Horizontal");
+        float vertical   = Input.GetAxisRaw("Vertical");
+
+        Vector3 input = transform.right * horizontal + transform.forward * vertical;
+        moveDirection = input.normalized * speed;
+    }
+
+    private void ApplyMovement()
+    {
+        Vector3 vel = playerRigidbody.linearVelocity;
+        vel.x = moveDirection.x;
+        vel.z = moveDirection.z;
+        playerRigidbody.linearVelocity = vel;
+    }
+
+    private void HandleMouseLook()
+    {
+        if (playerCamera == null) return;
+
+        // --- Input mouse mentah ---
+        float mouseX = Input.GetAxisRaw("Mouse X");
+        float mouseY = Input.GetAxisRaw("Mouse Y");
+
+        // --- Scale dengan sensitivity & deltaTime (FPS-independent) ---
+        // Mouse input adalah delta per frame, jadi kita kalikan dengan sensitivity saja
+        // (tidak perlu deltaTime karena Input.GetAxisRaw sudah per-frame)
+        float targetLookX = mouseX * mouseSensitivity;
+        float targetLookY = mouseY * mouseSensitivity;
+
+        // --- Smoothing (opsional) ---
+        if (lookSmoothing > 0f)
+        {
+            float smoothFactor = 1f - Mathf.Exp(-lookSmoothing * Time.unscaledDeltaTime);
+            smoothLookDelta.x = Mathf.Lerp(smoothLookDelta.x, targetLookX, smoothFactor);
+            smoothLookDelta.y = Mathf.Lerp(smoothLookDelta.y, targetLookY, smoothFactor);
+        }
+        else
+        {
+            smoothLookDelta.x = targetLookX;
+            smoothLookDelta.y = targetLookY;
+        }
+
+        // --- Rotasi horizontal (body player) ---
+        cameraYaw += smoothLookDelta.x;
+
+        // --- Rotasi vertikal (kamera anak) ---
+        cameraPitch -= smoothLookDelta.y;
+        cameraPitch = Mathf.Clamp(cameraPitch, minimumLookAngle, maximumLookAngle);
+
+        // --- Apply rotasi ---
+        playerRigidbody.MoveRotation(Quaternion.Euler(0f, cameraYaw, 0f));
+        playerCamera.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
+    }
+
+    private void OnEnable()
+    {
+        LockCursor();
+    }
+
+    private void OnDisable()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    private void LockCursor()
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+}
