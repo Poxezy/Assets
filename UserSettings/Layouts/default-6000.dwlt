@@ -118,7 +118,7 @@ MonoBehaviour:
   m_MinSize: {x: 200, y: 112}
   m_MaxSize: {x: 16192, y: 16192}
   vertical: 0
-  controlID: 46
+  controlID: 54
   draggingID: 0
 --- !u!114 &6
 MonoBehaviour:
@@ -144,7 +144,7 @@ MonoBehaviour:
   m_MinSize: {x: 200, y: 112}
   m_MaxSize: {x: 16192, y: 16192}
   vertical: 1
-  controlID: 47
+  controlID: 55
   draggingID: 0
 --- !u!114 &7
 MonoBehaviour:
@@ -170,7 +170,7 @@ MonoBehaviour:
   m_MinSize: {x: 200, y: 56}
   m_MaxSize: {x: 16192, y: 8096}
   vertical: 0
-  controlID: 39
+  controlID: 56
   draggingID: 0
 --- !u!114 &8
 MonoBehaviour:
@@ -594,11 +594,7 @@ MonoBehaviour:
     - m_rawData: 568105584918825214
     m_LastClickedID:
       m_rawData: 568105584918825214
-    m_ExpandedIDs:
-    - m_rawData: 568105589213729120
-    - m_rawData: 0
-    - m_rawData: 568105584918825198
-    - m_rawData: 568105584918825200
+    m_ExpandedIDs: []
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -667,8 +663,8 @@ MonoBehaviour:
     - m_rawData: 568105584918843848
     m_RenameOverlay:
       m_UserAcceptedRename: 0
-      m_Name: campusyard
-      m_OriginalName: campusyard
+      m_Name: 
+      m_OriginalName: 
       m_EditFieldRect:
         serializedVersion: 2
         x: 0
@@ -676,10 +672,10 @@ MonoBehaviour:
         width: 0
         height: 0
       m_UserData:
-        m_rawData: 568105584918825226
+        m_rawData: 0
       m_IsWaitingForDelay: 0
       m_IsRenaming: 0
-      m_OriginalEventType: 0
+      m_OriginalEventType: 11
       m_IsRenamingFilename: 1
       m_TrimLeadingAndTrailingWhitespace: 0
       m_ClientGUIView: {fileID: 10}
@@ -742,23 +738,11 @@ MonoBehaviour:
       m_LastClickedID:
         m_rawData: 0
       m_ExpandedIDs:
-      - m_rawData: 568105589213719478
-      - m_rawData: 568105589213722514
-      - m_rawData: 568105589213723378
-      - m_rawData: 568105589213723870
-      - m_rawData: 568105589213724364
-      - m_rawData: 568105589213726926
-      - m_rawData: 568105589213727750
-      - m_rawData: 568105589213727812
-      - m_rawData: 568105589213728312
-      - m_rawData: 568105589213729098
-      - m_rawData: 568105589213730230
-      - m_rawData: 568105584918826814
-      - m_rawData: 568105584918827136
+      - m_rawData: 568105589213756064
       m_RenameOverlay:
         m_UserAcceptedRename: 0
-        m_Name: Player
-        m_OriginalName: Player
+        m_Name: 
+        m_OriginalName: 
         m_EditFieldRect:
           serializedVersion: 2
           x: 0
@@ -766,10 +750,10 @@ MonoBehaviour:
           width: 0
           height: 0
         m_UserData:
-          m_rawData: 568105584918827136
+          m_rawData: 0
         m_IsWaitingForDelay: 0
         m_IsRenaming: 0
-        m_OriginalEventType: 0
+        m_OriginalEventType: 11
         m_IsRenamingFilename: 0
         m_TrimLeadingAndTrailingWhitespace: 0
         m_ClientGUIView: {fileID: 8}
