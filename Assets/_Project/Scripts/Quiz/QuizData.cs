@@ -1,5 +1,4 @@
 using UnityEngine;
-
 namespace MetaEdu.Quiz
 {
     [System.Serializable]
@@ -16,7 +15,6 @@ namespace MetaEdu.Quiz
         public string explanation;
         public int scoreValue = 20;
     }
-
     [CreateAssetMenu(fileName = "NewQuiz", menuName = "MetaEdu/Quiz", order = 2)]
     public class QuizData : ScriptableObject
     {
