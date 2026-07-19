@@ -8,7 +8,7 @@ namespace MetaEdu.Quest
         public static QuestManager Instance { get; private set; }
 
         public List<QuestData> allQuests = new List<QuestData>();
-        
+
         private Dictionary<string, QuestData> questDatabase = new Dictionary<string, QuestData>();
 
         public System.Action<QuestData> OnQuestActivated;
@@ -58,7 +58,7 @@ namespace MetaEdu.Quest
                 if (quest.status == QuestStatus.Active)
                 {
                     quest.status = QuestStatus.Completed;
-                    
+
                     // Berikan reward XP
                     if (ScoreManager.Instance != null)
                     {
