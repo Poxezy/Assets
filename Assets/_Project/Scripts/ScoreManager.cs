@@ -291,9 +291,16 @@ public class ScoreManager : MonoBehaviour
         PlayerPrefs.DeleteKey("PlayerLevel");
         PlayerPrefs.DeleteKey("UnlockedBadges");
         PlayerPrefs.DeleteKey("UnlockedAreas");
+        // Write zeros explicitly so reload cannot revive old score
+        PlayerPrefs.SetInt("PlayerScore", 0);
+        PlayerPrefs.SetInt("PlayerLevel", 1);
+        KnowledgeItem.ClearAllCollected();
+        if (MetaEdu.Quest.QuestManager.Instance != null)
+            MetaEdu.Quest.QuestManager.Instance.ResetAllQuests();
         PlayerPrefs.Save();
 
         CheckUnlockedAreas();
+        SaveProgress();
         SaveToDatabase();
 
         OnProgressChanged?.Invoke();

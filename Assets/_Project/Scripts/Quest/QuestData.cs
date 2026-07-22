@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+
 namespace MetaEdu.Quest
 {
     public enum QuestStatus
@@ -9,14 +10,21 @@ namespace MetaEdu.Quest
         Active,
         Completed
     }
+
     [System.Serializable]
     public class QuestObjective
     {
+        /// <summary>Stable id for progress reports (not display text).</summary>
+        public string objectiveId;
         public string description;
+        public string hintText;
+        /// <summary>Book | ClassroomDoor | empty</summary>
+        public string targetTag;
         public int currentCount;
-        public int requiredCount;
+        public int requiredCount = 1;
         public bool isCompleted => currentCount >= requiredCount;
     }
+
     [CreateAssetMenu(fileName = "NewQuest", menuName = "MetaEdu/Quest", order = 1)]
     public class QuestData : ScriptableObject
     {

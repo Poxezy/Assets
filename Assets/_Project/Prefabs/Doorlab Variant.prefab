@@ -109,6 +109,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8a5c0e25ead99df4eb70d2885c5dd0f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  areaName: Library
-  targetScene: Library
-  requiredLevel: 2
+  areaName: Campus
+  targetScene: campusyard
+  requiredLevel: 1

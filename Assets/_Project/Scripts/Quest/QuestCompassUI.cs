@@ -1,0 +1,220 @@
+using TMPro;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+namespace MetaEdu.Quest
+{
+    /// <summary>Top-center compass needle + distance + next-step label.</summary>
+    public class QuestCompassUI : MonoBehaviour
+    {
+        public static QuestCompassUI Instance { get; private set; }
+
+        GameObject root;
+        GameObject panel;
+        RectTransform needleRt;
+        TMP_Text distText;
+        TMP_Text labelText;
+        CanvasGroup group;
+        bool built;
+
+        void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(this);
+                return;
+            }
+            Instance = this;
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
+
+        void Start()
+        {
+            EnsureUI();
+        }
+
+        void Update()
+        {
+            string scene = SceneManager.GetActiveScene().name;
+            if (scene == "MainMenu" || scene == "Leaderboard")
+            {
+                SetVisible(false);
+                return;
+            }
+
+            // Hide under quiz
+            if (MetaEdu.Quiz.QuizManager.Instance != null && MetaEdu.Quiz.QuizManager.Instance.IsRunning)
+            {
+                SetVisible(false);
+                return;
+            }
+
+            EnsureUI();
+            var wp = QuestWaypointService.Instance;
+            if (wp == null || !wp.HasTarget)
+            {
+                if (labelText != null)
+                    labelText.text = "Tidak ada target misi";
+                if (distText != null)
+                    distText.text = "—";
+                if (needleRt != null)
+                    needleRt.localRotation = Quaternion.identity;
+                SetVisible(true);
+                if (group != null) group.alpha = 0.55f;
+                return;
+            }
+
+            SetVisible(true);
+            if (group != null) group.alpha = 1f;
+
+            float yaw = wp.GetYawToTarget();
+            if (needleRt != null)
+                needleRt.localRotation = Quaternion.Euler(0f, 0f, -yaw);
+
+            float dist = wp.GetDistanceToTarget();
+            if (distText != null)
+                distText.text = dist >= 0f ? Mathf.RoundToInt(dist) + " m" : "—";
+
+            if (labelText != null)
+            {
+                string lab = wp.TargetLabel ?? "";
+                if (lab.Length > 42) lab = lab.Substring(0, 41) + "…";
+                labelText.text = lab;
+            }
+        }
+
+        void SetVisible(bool on)
+        {
+            if (panel != null && panel.activeSelf != on)
+                panel.SetActive(on);
+        }
+
+        void EnsureUI()
+        {
+            if (built && root != null) return;
+            Build();
+        }
+
+        void Build()
+        {
+            built = true;
+
+            var canvasGo = transform.Find("CompassCanvas");
+            GameObject cgo;
+            if (canvasGo != null)
+                cgo = canvasGo.gameObject;
+            else
+            {
+                cgo = new GameObject("CompassCanvas", typeof(RectTransform));
+                cgo.transform.SetParent(transform, false);
+            }
+
+            var canvas = cgo.GetComponent<Canvas>();
+            if (canvas == null) canvas = cgo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 440;
+
+            var scaler = cgo.GetComponent<CanvasScaler>();
+            if (scaler == null) scaler = cgo.AddComponent<CanvasScaler>();
+            UITheme.ApplyStandardScaler(scaler);
+            if (cgo.GetComponent<GraphicRaycaster>() == null)
+                cgo.AddComponent<GraphicRaycaster>();
+
+            root = Create("CompassRoot", cgo.transform);
+            Stretch(root.GetComponent<RectTransform>());
+            var rootImg = root.AddComponent<Image>();
+            rootImg.color = new Color(0, 0, 0, 0);
+            rootImg.raycastTarget = false;
+
+            panel = Create("CompassPanel", root.transform);
+            var prt = panel.GetComponent<RectTransform>();
+            prt.anchorMin = new Vector2(0.5f, 1f);
+            prt.anchorMax = new Vector2(0.5f, 1f);
+            prt.pivot = new Vector2(0.5f, 1f);
+            prt.anchoredPosition = new Vector2(0f, -18f);
+            prt.sizeDelta = new Vector2(280f, 86f);
+
+            var pimg = panel.AddComponent<Image>();
+            pimg.color = UITheme.HudPanel;
+            pimg.raycastTarget = false;
+            panel.AddComponent<RectMask2D>();
+            group = panel.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+
+            var outline = panel.AddComponent<Outline>();
+            outline.effectColor = new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.5f);
+            outline.effectDistance = new Vector2(1.2f, -1.2f);
+
+            // Ring
+            var ring = Create("CompassRing", panel.transform);
+            var rrt = ring.GetComponent<RectTransform>();
+            rrt.anchorMin = rrt.anchorMax = new Vector2(0f, 0.5f);
+            rrt.pivot = new Vector2(0.5f, 0.5f);
+            rrt.anchoredPosition = new Vector2(44f, 0f);
+            rrt.sizeDelta = new Vector2(52f, 52f);
+            var ringImg = ring.AddComponent<Image>();
+            ringImg.color = UITheme.CardInner;
+            ringImg.raycastTarget = false;
+
+            // Needle (triangle-ish via stretched image)
+            var needle = Create("CompassNeedle", ring.transform);
+            needleRt = needle.GetComponent<RectTransform>();
+            needleRt.anchorMin = needleRt.anchorMax = new Vector2(0.5f, 0.5f);
+            needleRt.pivot = new Vector2(0.5f, 0.15f);
+            needleRt.anchoredPosition = Vector2.zero;
+            needleRt.sizeDelta = new Vector2(8f, 28f);
+            var nimg = needle.AddComponent<Image>();
+            nimg.color = UITheme.Gold;
+            nimg.raycastTarget = false;
+
+            distText = CreateTmp("CompassDist", panel.transform, "—", 18, UITheme.GoldSoft, FontStyles.Bold);
+            var drt = distText.rectTransform;
+            drt.anchorMin = new Vector2(0f, 0.5f);
+            drt.anchorMax = new Vector2(1f, 1f);
+            drt.offsetMin = new Vector2(84f, 4f);
+            drt.offsetMax = new Vector2(-12f, -8f);
+            distText.alignment = TextAlignmentOptions.Left;
+
+            labelText = CreateTmp("CompassLabel", panel.transform, "Target misi", 12, UITheme.Cream, FontStyles.Normal);
+            var lrt = labelText.rectTransform;
+            lrt.anchorMin = new Vector2(0f, 0f);
+            lrt.anchorMax = new Vector2(1f, 0.5f);
+            lrt.offsetMin = new Vector2(84f, 8f);
+            lrt.offsetMax = new Vector2(-12f, -2f);
+            labelText.alignment = TextAlignmentOptions.Left;
+            UITheme.FitText(labelText, 12f, true);
+        }
+
+        static GameObject Create(string name, Transform parent)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            return go;
+        }
+
+        static void Stretch(RectTransform rt)
+        {
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+
+        static TMP_Text CreateTmp(string name, Transform parent, string text, float size, Color color, FontStyles style)
+        {
+            var go = Create(name, parent);
+            var tmp = go.AddComponent<TextMeshProUGUI>();
+            tmp.text = text;
+            tmp.color = color;
+            tmp.fontStyle = style;
+            tmp.raycastTarget = false;
+            UITheme.FitText(tmp, size, true);
+            return tmp;
+        }
+    }
+}

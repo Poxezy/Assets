@@ -7,7 +7,7 @@ public class FPSController : MonoBehaviour
     public float jumpHeight = 3f;
 
     [Header("Mouse Look")]
-    public float mouseSensitivity = 100f;
+    public float mouseSensitivity = 40f;
     public Transform playerCamera;
 
     private CharacterController cc;
