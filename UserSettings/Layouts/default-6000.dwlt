@@ -19,7 +19,7 @@ MonoBehaviour:
     width: 1918
     height: 980
   m_ShowMode: 4
-  m_Title: Game
+  m_Title: Scene
   m_RootView: {fileID: 2}
   m_MinSize: {x: 875, y: 300}
   m_MaxSize: {x: 10000, y: 10000}
@@ -236,7 +236,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 1
   m_Script: {fileID: 12006, guid: 0000000000000000e000000000000000, type: 0}
-  m_Name: ConsoleWindow
+  m_Name: ProjectBrowser
   m_EditorClassIdentifier: 
   m_Children: []
   m_Position:
@@ -245,14 +245,14 @@ MonoBehaviour:
     y: 594
     width: 1918
     height: 330
-  m_MinSize: {x: 100, y: 126}
-  m_MaxSize: {x: 4000, y: 4026}
-  m_ActualView: {fileID: 17}
+  m_MinSize: {x: 230, y: 276}
+  m_MaxSize: {x: 10000, y: 10026}
+  m_ActualView: {fileID: 12}
   m_Panes:
   - {fileID: 12}
   - {fileID: 17}
-  m_Selected: 1
-  m_LastSelected: 0
+  m_Selected: 0
+  m_LastSelected: 1
 --- !u!114 &11
 MonoBehaviour:
   m_ObjectHideFlags: 52
@@ -591,10 +591,14 @@ MonoBehaviour:
   m_FolderTreeState:
     scrollPos: {x: 0, y: 0}
     m_SelectedIDs:
-    - m_rawData: 568105584918825214
+    - m_rawData: 568105584918818026
     m_LastClickedID:
-      m_rawData: 568105584918825214
-    m_ExpandedIDs: []
+      m_rawData: 568105584918818026
+    m_ExpandedIDs:
+    - m_rawData: 568105589213748510
+    - m_rawData: 0
+    - m_rawData: 568105584918818010
+    - m_rawData: 568105584918818012
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -654,11 +658,10 @@ MonoBehaviour:
       m_Icon: {fileID: 0}
       m_ResourceFile: 
   m_ListAreaState:
-    m_SelectedInstanceIDs:
-    - m_rawData: 568105589213723276
+    m_SelectedInstanceIDs: []
     m_LastClickedEntityId:
-      m_rawData: 568105589213723276
-    m_HadKeyboardFocusLastEvent: 1
+      m_rawData: 0
+    m_HadKeyboardFocusLastEvent: 0
     m_ExpandedInstanceIDs:
     - m_rawData: 568105584918843848
     m_RenameOverlay:
@@ -738,7 +741,24 @@ MonoBehaviour:
       m_LastClickedID:
         m_rawData: 0
       m_ExpandedIDs:
-      - m_rawData: 568105589213756064
+      - m_rawData: 568105589213738426
+      - m_rawData: 568105589213739258
+      - m_rawData: 568105589213740394
+      - m_rawData: 568105589213741958
+      - m_rawData: 568105589213743182
+      - m_rawData: 568105589213744186
+      - m_rawData: 568105589213746228
+      - m_rawData: 568105589213746452
+      - m_rawData: 568105589213746760
+      - m_rawData: 568105589213746814
+      - m_rawData: 568105589213746888
+      - m_rawData: 568105589213747858
+      - m_rawData: 568105589213748350
+      - m_rawData: 568105589213749782
+      - m_rawData: 568105589213752302
+      - m_rawData: 568105589213754114
+      - m_rawData: 568105589213756076
+      - m_rawData: 568105584918817602
       m_RenameOverlay:
         m_UserAcceptedRename: 0
         m_Name: 
@@ -1278,9 +1298,9 @@ MonoBehaviour:
   m_AudioPlay: 0
   m_DebugDrawModesUseInteractiveLightBakingData: 0
   m_Position:
-    m_Target: {x: 523.14, y: 252.35, z: 74.6}
+    m_Target: {x: 0, y: 0.8499999, z: 0}
     speed: 2
-    m_Value: {x: 523.14, y: 252.35, z: 74.6}
+    m_Value: {x: 0, y: 0.8499999, z: 0}
   m_RenderMode: 0
   m_CameraMode:
     drawMode: 0

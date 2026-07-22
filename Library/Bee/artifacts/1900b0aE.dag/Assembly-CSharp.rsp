@@ -462,6 +462,7 @@
 "Assets/_Project/Scripts/MiniGames/NetworkBuilderGame.cs"
 "Assets/_Project/Scripts/PauseMenu.cs"
 "Assets/_Project/Scripts/Player/FPSController.cs"
+"Assets/_Project/Scripts/Player/PlayerRespawn.cs"
 "Assets/_Project/Scripts/Quest/QuestData.cs"
 "Assets/_Project/Scripts/Quest/QuestManager.cs"
 "Assets/_Project/Scripts/Quiz/QuizData.cs"

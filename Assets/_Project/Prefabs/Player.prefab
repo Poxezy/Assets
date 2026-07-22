@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 4444444444444444}
   - component: {fileID: 1144444444444444}
   - component: {fileID: 1434444444444444}
+  - component: {fileID: 1144444444444446}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -18,6 +19,21 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!114 &1144444444444446
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1111111111111111}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb2b6f2c585bf8347bf3b14696f44bac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  spawnPoint: {fileID: 0}
+  fallThreshold: 0
+  enableManualRespawn: 1
 --- !u!4 &4444444444444444
 Transform:
   m_ObjectHideFlags: 0
@@ -73,8 +89,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 5
-  lookSpeed: 3
-  playerCamera: {fileID: 2055555555555555}
+  jumpHeight: 3
+  mouseSensitivity: 100
+  playerCamera: {fileID: 4444444444444445}
 --- !u!1 &1111111111111112
 GameObject:
   m_ObjectHideFlags: 0

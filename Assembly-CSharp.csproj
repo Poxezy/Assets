@@ -57,6 +57,7 @@
     <Compile Include="Assets\_Project\Scripts\Audio\AudioManager.cs" />
     <Compile Include="Assets\_Project\Scripts\Interaction\IInteractable.cs" />
     <Compile Include="Assets\_Project\Scripts\MiniGames\HardwareIDGame.cs" />
+    <Compile Include="Assets\_Project\Scripts\Player\PlayerRespawn.cs" />
     <Compile Include="Assets\_Project\Scripts\Quest\QuestData.cs" />
     <Compile Include="Assets\_Project\Scripts\Dialogue\DialogueData.cs" />
     <Compile Include="Assets\_Project\Scripts\ItemLightPulse.cs" />
