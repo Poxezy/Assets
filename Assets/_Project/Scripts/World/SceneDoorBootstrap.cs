@@ -23,36 +23,48 @@ public class SceneDoorBootstrap : MonoBehaviour
             SpawnCampusDoors();
         else if (scene == "classroom")
             SpawnClassroomExit("campusyard", "KELUAR · Campus Yard");
-        else if (scene == "MainScene")
-            SpawnStandaloneReturn("campusyard", "KELUAR · Campus Yard");
+        else if (scene == "Library" || scene == "MainScene")
+            SpawnLibraryExit("campusyard", "KELUAR · Campus Yard");
+    }
+
+    /// <summary>Library / MainScene exit — flush on mesh "a door1".</summary>
+    static void SpawnLibraryExit(string target, string label)
+    {
+        if (TryPlaceOnNamedDoorMesh(target, label,
+                "a door1", "a door 1", "adoor1", "Door1", "door1", "a door"))
+            return;
+
+        Debug.LogWarning("SceneDoorBootstrap: a door1 missing in Library — fallback near player.");
+        SpawnStandaloneReturn(target, label);
     }
 
     /// <summary>
-    /// Exit door flush on Doorlab mesh — exact classroom door location.
+    /// Exit door flush on real door mesh (a door1 / Doorlab).
     /// </summary>
     static void SpawnClassroomExit(string target, string label)
     {
-        // User request: always on Doorlab
-        if (TryPlaceOnDoorlab(target, label))
+        // Prefer a door1, then Doorlab, then wall gap
+        if (TryPlaceOnNamedDoorMesh(target, label,
+                "a door1", "a door 1", "adoor1", "Doorlab", "DoorLab", "doorlab", "a door"))
             return;
         if (TryPlaceInWallPintuOpening(target, label))
             return;
 
-        Debug.LogWarning("SceneDoorBootstrap: Doorlab missing — fallback near player.");
+        Debug.LogWarning("SceneDoorBootstrap: door mesh missing — fallback near player.");
         SpawnStandaloneReturn(target, label);
     }
 
-    /// <summary>Place exit exactly on Doorlab transform (pos + face into room).</summary>
-    static bool TryPlaceOnDoorlab(string target, string label)
+    /// <summary>Place exit exactly on named door mesh (pos + face into room).</summary>
+    static bool TryPlaceOnNamedDoorMesh(string target, string label, params string[] names)
     {
-        Transform doorMesh = FindNamedTransform("Doorlab", "DoorLab", "doorlab");
+        Transform doorMesh = FindNamedTransform(names);
         if (doorMesh == null) return false;
 
         Bounds b = GetWorldBounds(doorMesh);
-        // Center of Doorlab footprint, feet on floor of mesh
+        // Center of door footprint, feet on floor of mesh
         Vector3 pos = new Vector3(b.center.x, b.min.y, b.center.z);
 
-        // Prefer Doorlab forward if it points into room; else toward room center
+        // Prefer mesh forward if it points into room; else toward room center
         Vector3 roomCenter = EstimateRoomCenter();
         Vector3 toRoom = roomCenter - pos;
         toRoom.y = 0f;
@@ -63,30 +75,27 @@ public class SceneDoorBootstrap : MonoBehaviour
             forward = doorMesh.right;
         forward.Normalize();
 
-        // Pick forward vs back so door faces INTO classroom
+        // Pick forward vs back so door faces INTO room
         Vector3 inward = forward;
         if (toRoom.sqrMagnitude > 0.01f)
         {
             toRoom.Normalize();
             if (Vector3.Dot(forward, toRoom) < 0f)
                 inward = -forward;
-            // if mesh axes weird, fall back to room direction
             if (Mathf.Abs(Vector3.Dot(inward, toRoom)) < 0.25f)
                 inward = toRoom;
         }
 
-        // Sit flush on Doorlab face (tiny pull into room, no free-standing gap)
+        // Sit flush on door face (tiny pull into room)
         pos += inward * 0.05f;
 
-        // Match Doorlab size
         float doorW = Mathf.Max(b.size.x, b.size.z);
-        float doorH = b.size.y;
+        float doorH = Mathf.Max(0.5f, b.size.y);
         float scaleW = Mathf.Clamp(doorW / 1.35f, 0.75f, 1.6f);
         float scaleH = Mathf.Clamp(doorH / 2.4f, 0.8f, 1.5f);
-        float scale = (scaleW + scaleH) * 0.5f;
-        scale = Mathf.Clamp(scale, 0.85f, 1.45f);
+        float scale = Mathf.Clamp((scaleW + scaleH) * 0.5f, 0.85f, 1.45f);
 
-        PlaceFlushExitDoor(target, label, pos, inward, scale, "Doorlab");
+        PlaceFlushExitDoor(target, label, pos, inward, scale, doorMesh.name);
         return true;
     }
 
@@ -189,9 +198,30 @@ public class SceneDoorBootstrap : MonoBehaviour
 
     static Vector3 EstimateRoomCenter()
     {
-        var floor = FindNamedTransform("floor", "Floor");
+        var floor = FindNamedTransform("floor", "Floor", "Plane");
         if (floor != null)
             return GetWorldBounds(floor).center;
+
+        // Average of wall-like objects if present (Library uses Dinding*)
+        var walls = Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude);
+        Bounds? room = null;
+        for (int i = 0; i < walls.Length; i++)
+        {
+            string n = walls[i].name;
+            if (n.IndexOf("Dinding", System.StringComparison.OrdinalIgnoreCase) < 0
+                && n.IndexOf("wall", System.StringComparison.OrdinalIgnoreCase) < 0
+                && n.IndexOf("Atap", System.StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+            Bounds wb = GetWorldBounds(walls[i]);
+            if (!room.HasValue) room = wb;
+            else
+            {
+                var b = room.Value;
+                b.Encapsulate(wb);
+                room = b;
+            }
+        }
+        if (room.HasValue) return room.Value.center;
 
         var player = FindPlayerPos();
         if (player.sqrMagnitude > 0.01f) return player;
@@ -207,7 +237,8 @@ public class SceneDoorBootstrap : MonoBehaviour
             if (go != null) return go.transform;
         }
 
-        var all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude);
+        // Include inactive (scene props sometimes start disabled)
+        var all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include);
         for (int p = 0; p < exactOrParts.Length; p++)
         {
             string key = exactOrParts[p];
@@ -222,6 +253,7 @@ public class SceneDoorBootstrap : MonoBehaviour
             string key = exactOrParts[p];
             for (int i = 0; i < all.Length; i++)
             {
+                // "a door1" / "a door" partial match, ignore case
                 if (all[i].name.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0)
                     return all[i];
             }
@@ -241,9 +273,9 @@ public class SceneDoorBootstrap : MonoBehaviour
         {
             AttachDoorToBuilding(
                 mainBld,
-                "Door_MainScene",
-                "MainScene",
-                "Main Scene",
+                "Door_Library",
+                "Library",
+                "Library",
                 playerPos,
                 requireUnlock: false,
                 areaName: "Campus",
@@ -500,8 +532,9 @@ public class SceneDoorBootstrap : MonoBehaviour
         string tag = null;
         if (string.Equals(targetScene, "classroom", System.StringComparison.OrdinalIgnoreCase))
             tag = "ClassroomDoor";
-        else if (string.Equals(targetScene, "MainScene", System.StringComparison.OrdinalIgnoreCase))
-            tag = "MainSceneDoor";
+        else if (string.Equals(targetScene, "Library", System.StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(targetScene, "MainScene", System.StringComparison.OrdinalIgnoreCase))
+            tag = "LibraryDoor";
         if (tag == null) return;
 
         // FindGameObjectsWithTag throws if tag not in TagManager

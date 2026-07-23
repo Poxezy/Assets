@@ -188,8 +188,9 @@ namespace MetaEdu.Quest
             if (string.Equals(tag, "ClassroomDoor", System.StringComparison.OrdinalIgnoreCase))
                 return FindClassroomDoor();
 
-            if (string.Equals(tag, "MainSceneDoor", System.StringComparison.OrdinalIgnoreCase))
-                return FindDoorToScene("MainScene", "mainscene", "main_scene", "Door_Main");
+            if (string.Equals(tag, "LibraryDoor", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(tag, "MainSceneDoor", System.StringComparison.OrdinalIgnoreCase))
+                return FindDoorToScene("Library", "library", "Door_Library", "MainScene", "Door_Main");
 
             return null;
         }
