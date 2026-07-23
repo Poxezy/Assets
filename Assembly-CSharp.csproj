@@ -53,11 +53,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\_Project\Scripts\World\SceneDoorBootstrap.cs" />
+    <Compile Include="Assets\_Project\lama\scripts\MainMenuVisuals.cs" />
     <Compile Include="Assets\_Project\Scripts\Player\FPSController.cs" />
     <Compile Include="Assets\_Project\Scripts\Core\GameManager.cs" />
     <Compile Include="Assets\_Project\Scripts\UI\UITheme.cs" />
     <Compile Include="Assets\_Project\Scripts\Audio\AudioManager.cs" />
     <Compile Include="Assets\_Project\Scripts\Interaction\IInteractable.cs" />
+    <Compile Include="Assets\_Project\Scripts\UI\ExclusiveMenuUI.cs" />
     <Compile Include="Assets\_Project\Scripts\UI\ProfilePanel.cs" />
     <Compile Include="Assets\_Project\Scripts\Quest\QuestWaypointService.cs" />
     <Compile Include="Assets\_Project\Scripts\MiniGames\HardwareIDGame.cs" />
@@ -76,7 +78,6 @@
     <Compile Include="Assets\_Project\Scripts\UI\UIMotion.cs" />
     <Compile Include="Assets\_Project\Scripts\KnowledgeItem.cs" />
     <Compile Include="Assets\_Project\Scripts\ScoreUI.cs" />
-    <Compile Include="Assets\_Project\Scripts\UI\MainMenuVisuals.cs" />
     <Compile Include="Assets\_Project\Scripts\ScoreManager.cs" />
     <Compile Include="Assets\_Project\Scripts\PauseMenu.cs" />
     <Compile Include="Assets\_Project\Scripts\Quiz\BookQuizBank.cs" />
@@ -89,6 +90,7 @@
     <Compile Include="Assets\_Project\Scripts\LeaderboardDisplay.cs" />
     <Compile Include="Assets\_Project\Scripts\AreaGate.cs" />
     <Compile Include="Assets\_Project\Scripts\Quiz\QuizData.cs" />
+    <Compile Include="Assets\_Project\Scripts\World\MeshMaterialClamp.cs" />
     <Compile Include="Assets\_Project\Scripts\GamificationUI.cs" />
     <Compile Include="Assets\_Project\Scripts\UI\EventSystemGuard.cs" />
     <Compile Include="Assets\_Project\Scripts\Interaction\MiniGameInteractable.cs" />
@@ -96,11 +98,13 @@
     <Compile Include="Assets\_Project\Scripts\MainMenuController.cs" />
     <Compile Include="Assets\_Project\Scripts\Quest\QuestUI.cs" />
     <Compile Include="Assets\_Project\Scripts\MiniGames\AlgorithmSequenceGame.cs" />
+    <Compile Include="Assets\_Project\Scripts\World\GameplaySceneSetup.cs" />
     <Compile Include="Assets\_Project\Scripts\UI\ExclusiveUIStyler.cs" />
     <Compile Include="Assets\_Project\Scripts\Interaction\InteractionManager.cs" />
     <Compile Include="Assets\_Project\Scripts\Dialogue\DialogueManager.cs" />
     <Compile Include="Assets\_Project\Scripts\Quiz\QuizManager.cs" />
     <Compile Include="Assets\_Project\Scripts\ResetData.cs" />
+    <Compile Include="Assets\_Project\Scripts\Player\PlayerMovement.cs" />
     <Compile Include="Assets\_Project\Scripts\MiniGames\NetworkBuilderGame.cs" />
     <Compile Include="Assets\_Project\Scripts\Core\SceneLoader.cs" />
     <Compile Include="Assets\_Project\Scripts\Quest\QuestCompassUI.cs" />

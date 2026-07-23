@@ -157,8 +157,9 @@ public class SceneDoor : MonoBehaviour
         {
             if (string.Equals(targetScene, "classroom", System.StringComparison.OrdinalIgnoreCase))
                 MetaEdu.Quest.QuestManager.Instance.NotifyEnteredClassroom();
-            else if (string.Equals(targetScene, "MainScene", System.StringComparison.OrdinalIgnoreCase))
-                MetaEdu.Quest.QuestManager.Instance.NotifyEnteredMainScene();
+            else if (string.Equals(targetScene, "Library", System.StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(targetScene, "MainScene", System.StringComparison.OrdinalIgnoreCase))
+                MetaEdu.Quest.QuestManager.Instance.NotifyEnteredLibrary();
         }
 
         SceneManager.LoadScene(targetScene);

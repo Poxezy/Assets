@@ -136,14 +136,14 @@ namespace MetaEdu.Quest
                     Obj("enter_classroom", "Masuk ke Classroom", "Ikuti kompas ke pintu Classroom, tekan E", "ClassroomDoor", 1)),
 
                 MakeQuest(
-                    "visit_mainscene",
-                    "Jelajahi Main Scene",
-                    "Setelah kelas, temukan pintu Main Scene di Campus Yard dan masuk.",
+                    "visit_library",
+                    "Jelajahi Library",
+                    "Setelah kelas, temukan pintu Library di Campus Yard dan masuk.",
                     "visit_classroom",
                     QuestStatus.Locked,
                     100,
                     "",
-                    Obj("enter_mainscene", "Masuk ke Main Scene", "Ikuti kompas ke pintu Main Scene, tekan E", "MainSceneDoor", 1)),
+                    Obj("enter_library", "Masuk ke Library", "Ikuti kompas ke pintu Library, tekan E", "LibraryDoor", 1)),
             };
         }
 
@@ -151,18 +151,45 @@ namespace MetaEdu.Quest
         void EnsureExtraQuests()
         {
             if (allQuests == null) allQuests = new List<QuestData>();
+            // Migrate old visit_mainscene → visit_library wording if present
             if (HasQuestId("visit_mainscene") || questDatabase.ContainsKey("visit_mainscene"))
+            {
+                if (questDatabase.TryGetValue("visit_mainscene", out var old))
+                {
+                    old.questTitle = "Jelajahi Library";
+                    old.description = "Setelah kelas, temukan pintu Library di Campus Yard dan masuk.";
+                    if (old.objectives != null)
+                    {
+                        for (int i = 0; i < old.objectives.Count; i++)
+                        {
+                            var o = old.objectives[i];
+                            if (o == null) continue;
+                            if (o.objectiveId == "enter_mainscene") o.objectiveId = "enter_library";
+                            if (!string.IsNullOrEmpty(o.description)
+                                && o.description.IndexOf("Main Scene", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                                o.description = "Masuk ke Library";
+                            if (!string.IsNullOrEmpty(o.hintText)
+                                && o.hintText.IndexOf("Main Scene", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                                o.hintText = "Ikuti kompas ke pintu Library, tekan E";
+                            if (o.targetTag == "MainSceneDoor") o.targetTag = "LibraryDoor";
+                        }
+                    }
+                }
+            }
+
+            if (HasQuestId("visit_library") || questDatabase.ContainsKey("visit_library")
+                || HasQuestId("visit_mainscene") || questDatabase.ContainsKey("visit_mainscene"))
                 return;
 
             var q = MakeQuest(
-                "visit_mainscene",
-                "Jelajahi Main Scene",
-                "Setelah kelas, temukan pintu Main Scene di Campus Yard dan masuk.",
+                "visit_library",
+                "Jelajahi Library",
+                "Setelah kelas, temukan pintu Library di Campus Yard dan masuk.",
                 "visit_classroom",
                 QuestStatus.Locked,
                 100,
                 "",
-                Obj("enter_mainscene", "Masuk ke Main Scene", "Ikuti kompas ke pintu Main Scene, tekan E", "MainSceneDoor", 1));
+                Obj("enter_library", "Masuk ke Library", "Ikuti kompas ke pintu Library, tekan E", "LibraryDoor", 1));
             allQuests.Add(q);
             if (!questDatabase.ContainsKey(q.questID))
             {
@@ -361,9 +388,12 @@ namespace MetaEdu.Quest
             ReportObjective("enter_classroom", 1);
         }
 
-        public void NotifyEnteredMainScene()
+        public void NotifyEnteredMainScene() => NotifyEnteredLibrary();
+
+        public void NotifyEnteredLibrary()
         {
-            ReportObjective("enter_mainscene", 1);
+            ReportObjective("enter_library", 1);
+            ReportObjective("enter_mainscene", 1); // legacy objective id
         }
 
         void UnlockNextQuests(string completedQuestID)
@@ -484,13 +514,19 @@ namespace MetaEdu.Quest
             }
 
             if (string.Equals(tag, "ClassroomDoor", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(tag, "LibraryDoor", System.StringComparison.OrdinalIgnoreCase)
                 || string.Equals(tag, "MainSceneDoor", System.StringComparison.OrdinalIgnoreCase))
             {
                 string want = string.Equals(tag, "ClassroomDoor", System.StringComparison.OrdinalIgnoreCase)
-                    ? "classroom" : "MainScene";
+                    ? "classroom" : "Library";
                 string scene = SceneManager.GetActiveScene().name;
                 if (string.Equals(tag, "ClassroomDoor", System.StringComparison.OrdinalIgnoreCase)
                     && string.Equals(scene, "classroom", System.StringComparison.OrdinalIgnoreCase))
+                    want = "campusyard";
+                if ((string.Equals(tag, "LibraryDoor", System.StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(tag, "MainSceneDoor", System.StringComparison.OrdinalIgnoreCase))
+                    && (string.Equals(scene, "Library", System.StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(scene, "MainScene", System.StringComparison.OrdinalIgnoreCase)))
                     want = "campusyard";
 
                 var doors = Object.FindObjectsByType<SceneDoor>();
@@ -498,7 +534,9 @@ namespace MetaEdu.Quest
                 for (int i = 0; i < doors.Length; i++)
                 {
                     if (doors[i] == null) continue;
-                    if (string.Equals(doors[i].TargetScene, want, System.StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(doors[i].TargetScene, want, System.StringComparison.OrdinalIgnoreCase)
+                        || (want == "Library"
+                            && string.Equals(doors[i].TargetScene, "MainScene", System.StringComparison.OrdinalIgnoreCase)))
                         return true;
                 }
                 return false;

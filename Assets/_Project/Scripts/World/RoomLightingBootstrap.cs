@@ -16,7 +16,7 @@ public class RoomLightingBootstrap : MonoBehaviour
 
         if (scene == "classroom")
             ApplyClassroom();
-        else if (scene == "campusyard" || scene == "MainScene")
+        else if (scene == "campusyard" || scene == "MainScene" || scene == "Library")
             ApplyOutdoor(scene == "campusyard");
     }
 

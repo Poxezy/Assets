@@ -15,4 +15,6 @@ EditorBuildSettings:
     path: Assets/_Project/Scenes/Leaderboard.unity
   - enabled: 1
     path: Assets/_Project/Scenes/MainScene.unity
+  - enabled: 1
+    path: Assets/_Project/Scenes/Library.unity
   m_configObjects: {}

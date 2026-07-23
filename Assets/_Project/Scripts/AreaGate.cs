@@ -16,7 +16,7 @@ public class AreaGate : MonoBehaviour
 
     static readonly string[] KnownScenes =
     {
-        "MainMenu", "campusyard", "classroom", "Leaderboard", "MainScene"
+        "MainMenu", "campusyard", "classroom", "Leaderboard", "Library", "MainScene"
     };
 
     private void OnTriggerEnter(Collider other)
@@ -59,9 +59,9 @@ public class AreaGate : MonoBehaviour
                 return KnownScenes[i];
         }
 
-        // Legacy "Library" door → exit to campus
-        if (requested.IndexOf("Library", System.StringComparison.OrdinalIgnoreCase) >= 0
-            || requested.IndexOf("Lab", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        // Legacy Lab-only doors without scene → campus
+        if (requested.IndexOf("Lab", System.StringComparison.OrdinalIgnoreCase) >= 0
+            && requested.IndexOf("Library", System.StringComparison.OrdinalIgnoreCase) < 0)
             return "campusyard";
 
         // Probe build settings
