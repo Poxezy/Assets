@@ -34,15 +34,20 @@ public class ProfilePanel : MonoBehaviour
 
     public void Show()
     {
-        if (panelRoot == null) BuildRuntimeUI();
+        EnsurePanel();
+        if (panelRoot == null) return;
         LoadFromGame();
         panelRoot.SetActive(true);
         panelRoot.transform.SetAsLastSibling();
         ExclusiveUIStyler.Apply(panelRoot.transform);
         StyleProfileActions();
+        ExclusiveMenuUI.ForceAllButtons(panelRoot.transform);
         var cg = panelRoot.GetComponent<CanvasGroup>();
         if (cg == null) cg = panelRoot.AddComponent<CanvasGroup>();
-        cg.alpha = 0f;
+        cg.alpha = 1f;
+        cg.blocksRaycasts = true;
+        cg.interactable = true;
+        cg.ignoreParentGroups = true;
         UIMotion.FadeCanvas(cg, 1f, 0.18f);
         Transform cardT = panelRoot.transform.Find("ProfileCard");
         if (cardT == null && panelRoot.transform.childCount > 0)
@@ -54,6 +59,30 @@ public class ProfilePanel : MonoBehaviour
     {
         if (panelRoot != null)
             panelRoot.SetActive(false);
+    }
+
+    void EnsurePanel()
+    {
+        // Destroyed by clearHost → Unity fake-null; must rebuild
+        if (panelRoot == null)
+        {
+            built = false;
+            nameInput = null;
+            avatarLabel = null;
+            prevAvatarButton = null;
+            nextAvatarButton = null;
+            saveButton = null;
+            closeButton = null;
+            BuildRuntimeUI();
+            return;
+        }
+        // Reparent to active top canvas (pause overlay when open)
+        var host = ResolveHostCanvas();
+        if (host != null && panelRoot.transform.parent != host.transform)
+        {
+            panelRoot.transform.SetParent(host.transform, false);
+            StretchFull(panelRoot.GetComponent<RectTransform>());
+        }
     }
 
     void StyleProfileActions()
@@ -195,12 +224,11 @@ public class ProfilePanel : MonoBehaviour
 
     void BuildRuntimeUI()
     {
-        if (built) return;
+        if (built && panelRoot != null) return;
         built = true;
 
-        Canvas canvas = GetComponentInParent<Canvas>();
-        if (canvas == null) canvas = FindAnyObjectByType<Canvas>();
-        if (canvas == null) return;
+        Canvas canvas = ResolveHostCanvas();
+        if (canvas == null) { built = false; return; }
 
         // Prefer stable scaler on host canvas
         var scaler = canvas.GetComponent<CanvasScaler>();
@@ -282,6 +310,32 @@ public class ProfilePanel : MonoBehaviour
         WireButtons();
         ExclusiveUIStyler.Apply(panelRoot.transform);
         StyleProfileActions();
+    }
+
+    static Canvas ResolveHostCanvas()
+    {
+        // Prefer pause overlay when open so Profile sits above dim
+        var pause = GameObject.Find("ExclusivePauseRoot");
+        if (pause != null && pause.activeInHierarchy)
+        {
+            var pc = pause.GetComponent<Canvas>();
+            if (pc != null) return pc;
+        }
+        var all = Object.FindObjectsByType<Canvas>(FindObjectsInactive.Exclude);
+        Canvas best = null;
+        int bestSort = int.MinValue;
+        for (int i = 0; i < all.Length; i++)
+        {
+            var c = all[i];
+            if (c == null || !c.isActiveAndEnabled) continue;
+            if (c.renderMode != RenderMode.ScreenSpaceOverlay) continue;
+            if (c.sortingOrder >= bestSort)
+            {
+                bestSort = c.sortingOrder;
+                best = c;
+            }
+        }
+        return best != null ? best : Object.FindAnyObjectByType<Canvas>();
     }
 
     static GameObject CreateUIObject(string name, Transform parent)

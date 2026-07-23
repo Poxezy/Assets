@@ -296,7 +296,10 @@ public class ScoreManager : MonoBehaviour
         PlayerPrefs.SetInt("PlayerLevel", 1);
         KnowledgeItem.ClearAllCollected();
         if (MetaEdu.Quest.QuestManager.Instance != null)
+        {
             MetaEdu.Quest.QuestManager.Instance.ResetAllQuests();
+            MetaEdu.Quest.QuestManager.Instance.RestartIntroQuest();
+        }
         PlayerPrefs.Save();
 
         CheckUnlockedAreas();

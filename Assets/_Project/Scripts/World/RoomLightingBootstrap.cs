@@ -7,8 +7,8 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public class RoomLightingBootstrap : MonoBehaviour
 {
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    static void Apply()
+    /// <summary>Call from GameplaySceneSetup — no RuntimeInitialize auto-run.</summary>
+    public static void ApplyForActiveScene()
     {
         string scene = SceneManager.GetActiveScene().name;
         if (scene == "MainMenu" || scene == "Leaderboard")
@@ -18,6 +18,11 @@ public class RoomLightingBootstrap : MonoBehaviour
             ApplyClassroom();
         else if (scene == "campusyard" || scene == "MainScene")
             ApplyOutdoor(scene == "campusyard");
+    }
+
+    void Start()
+    {
+        ApplyForActiveScene();
     }
 
     static void ApplyClassroom()

@@ -1,36 +1,235 @@
 using UnityEngine;
 
 /// <summary>
-/// Spawns scene doors merged onto building facades (not free-standing pillars).
-/// Exit/return doors are larger, lit, and easy to spot.
+/// Spawns scene doors on facades / return doors.
+/// Place on scene Systems GO or call SpawnForActiveScene from GameplaySceneSetup.
 /// </summary>
 public class SceneDoorBootstrap : MonoBehaviour
 {
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    static void AutoBootstrap()
+    void Start()
+    {
+        SpawnForActiveScene();
+    }
+
+    public static void SpawnForActiveScene()
     {
         string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
         if (scene == "MainMenu" || scene == "Leaderboard") return;
+
+        // Already has doors — skip (scene-authored or previous spawn)
         if (Object.FindAnyObjectByType<SceneDoor>() != null) return;
-        if (Object.FindAnyObjectByType<SceneDoorBootstrap>() != null) return;
-
-        var go = new GameObject("SceneDoorBootstrap");
-        go.AddComponent<SceneDoorBootstrap>();
-    }
-
-    void Start()
-    {
-        string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
 
         if (scene == "campusyard")
             SpawnCampusDoors();
         else if (scene == "classroom")
-            SpawnStandaloneReturn("campusyard", "KELUAR · Campus Yard");
+            SpawnClassroomExit("campusyard", "KELUAR · Campus Yard");
         else if (scene == "MainScene")
             SpawnStandaloneReturn("campusyard", "KELUAR · Campus Yard");
     }
 
-    void SpawnCampusDoors()
+    /// <summary>
+    /// Exit door flush on Doorlab mesh — exact classroom door location.
+    /// </summary>
+    static void SpawnClassroomExit(string target, string label)
+    {
+        // User request: always on Doorlab
+        if (TryPlaceOnDoorlab(target, label))
+            return;
+        if (TryPlaceInWallPintuOpening(target, label))
+            return;
+
+        Debug.LogWarning("SceneDoorBootstrap: Doorlab missing — fallback near player.");
+        SpawnStandaloneReturn(target, label);
+    }
+
+    /// <summary>Place exit exactly on Doorlab transform (pos + face into room).</summary>
+    static bool TryPlaceOnDoorlab(string target, string label)
+    {
+        Transform doorMesh = FindNamedTransform("Doorlab", "DoorLab", "doorlab");
+        if (doorMesh == null) return false;
+
+        Bounds b = GetWorldBounds(doorMesh);
+        // Center of Doorlab footprint, feet on floor of mesh
+        Vector3 pos = new Vector3(b.center.x, b.min.y, b.center.z);
+
+        // Prefer Doorlab forward if it points into room; else toward room center
+        Vector3 roomCenter = EstimateRoomCenter();
+        Vector3 toRoom = roomCenter - pos;
+        toRoom.y = 0f;
+
+        Vector3 forward = doorMesh.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.01f)
+            forward = doorMesh.right;
+        forward.Normalize();
+
+        // Pick forward vs back so door faces INTO classroom
+        Vector3 inward = forward;
+        if (toRoom.sqrMagnitude > 0.01f)
+        {
+            toRoom.Normalize();
+            if (Vector3.Dot(forward, toRoom) < 0f)
+                inward = -forward;
+            // if mesh axes weird, fall back to room direction
+            if (Mathf.Abs(Vector3.Dot(inward, toRoom)) < 0.25f)
+                inward = toRoom;
+        }
+
+        // Sit flush on Doorlab face (tiny pull into room, no free-standing gap)
+        pos += inward * 0.05f;
+
+        // Match Doorlab size
+        float doorW = Mathf.Max(b.size.x, b.size.z);
+        float doorH = b.size.y;
+        float scaleW = Mathf.Clamp(doorW / 1.35f, 0.75f, 1.6f);
+        float scaleH = Mathf.Clamp(doorH / 2.4f, 0.8f, 1.5f);
+        float scale = (scaleW + scaleH) * 0.5f;
+        scale = Mathf.Clamp(scale, 0.85f, 1.45f);
+
+        PlaceFlushExitDoor(target, label, pos, inward, scale, "Doorlab");
+        return true;
+    }
+
+    /// <summary>Gap between wallpintu2 / wallpintu3 = doorway on south wall (z≈-18.65).</summary>
+    static bool TryPlaceInWallPintuOpening(string target, string label)
+    {
+        Transform a = FindNamedTransform("wallpintu2", "wallpintu 2", "WallPintu2");
+        Transform b = FindNamedTransform("wallpintu3", "wallpintu 3", "WallPintu3");
+        if (a == null || b == null) return false;
+
+        Bounds ba = GetWorldBounds(a);
+        Bounds bb = GetWorldBounds(b);
+
+        // Midpoint of the two wall segments = center of doorway
+        Vector3 mid = (ba.center + bb.center) * 0.5f;
+        float floorY = Mathf.Min(ba.min.y, bb.min.y);
+        mid.y = floorY;
+
+        Vector3 roomCenter = EstimateRoomCenter();
+        Vector3 inward = roomCenter - mid;
+        inward.y = 0f;
+        if (inward.sqrMagnitude < 0.01f) inward = Vector3.forward;
+        inward.Normalize();
+
+        // Flush with wall face, slight pull into room
+        mid += inward * 0.12f;
+
+        // Opening width ≈ distance between wall centers minus half each extent along wall axis
+        Vector3 along = bb.center - ba.center;
+        along.y = 0f;
+        float gap = along.magnitude;
+        float scale = Mathf.Clamp(gap / 4.2f, 0.95f, 1.45f);
+
+        PlaceFlushExitDoor(target, label, mid, inward, scale, "wallpintu gap");
+        return true;
+    }
+
+    static void PlaceFlushExitDoor(
+        string target, string label, Vector3 pos, Vector3 inward, float scale, string source)
+    {
+        var go = new GameObject("Door_Return_" + target);
+        go.transform.position = pos;
+        go.transform.rotation = Quaternion.LookRotation(inward, Vector3.up);
+
+        // Natural door (not tall beacon tower) — still readable exit
+        BuildFlushDoorVisual(go.transform, label, scale);
+        AddTriggerAndDoor(go, target, label, false, "", 1, large: true);
+
+        var box = go.GetComponent<BoxCollider>();
+        if (box != null)
+        {
+            box.center = new Vector3(0f, 1.15f, 0.45f);
+            box.size = new Vector3(2.0f, 2.6f, 1.4f);
+        }
+
+        Debug.Log("SceneDoorBootstrap: classroom exit (" + source + ") @ " + pos);
+    }
+
+    /// <summary>Door-sized frame flush in opening — less “pillar beacon”, more real door.</summary>
+    static void BuildFlushDoorVisual(Transform parent, string label, float scale)
+    {
+        parent.localScale = Vector3.one * scale;
+
+        Color frame = new Color(0.48f, 0.36f, 0.16f, 1f);
+        Color panel = new Color(0.22f, 0.16f, 0.08f, 1f);
+        Color gold = new Color(0.92f, 0.78f, 0.28f, 1f);
+
+        // Standard single door proportions
+        CreateBox(parent, "DoorPanel", new Vector3(0f, 1.15f, 0f), new Vector3(1.35f, 2.25f, 0.07f), panel);
+        CreateBox(parent, "PostL", new Vector3(-0.72f, 1.2f, 0.02f), new Vector3(0.12f, 2.4f, 0.12f), frame);
+        CreateBox(parent, "PostR", new Vector3(0.72f, 1.2f, 0.02f), new Vector3(0.12f, 2.4f, 0.12f), frame);
+        CreateBox(parent, "Lintel", new Vector3(0f, 2.42f, 0.02f), new Vector3(1.6f, 0.14f, 0.14f), frame);
+        CreateBox(parent, "Threshold", new Vector3(0f, 0.03f, 0.08f), new Vector3(1.55f, 0.06f, 0.28f), frame);
+        CreateBox(parent, "Handle", new Vector3(0.42f, 1.05f, 0.06f), new Vector3(0.06f, 0.22f, 0.08f), gold);
+        CreateBox(parent, "Accent", new Vector3(0f, 2.28f, 0.05f), new Vector3(1.25f, 0.05f, 0.06f), gold);
+
+        // Small warm light above lintel (not tall beacon pole)
+        var lightGo = new GameObject("DoorBeaconLight");
+        lightGo.transform.SetParent(parent, false);
+        lightGo.transform.localPosition = new Vector3(0f, 2.55f, 0.25f);
+        var light = lightGo.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.color = gold;
+        light.intensity = 1.8f;
+        light.range = 6f;
+        light.shadows = LightShadows.None;
+
+        var labelGo = new GameObject("DoorLabel");
+        labelGo.transform.SetParent(parent, false);
+        labelGo.transform.localPosition = new Vector3(0f, 2.65f, 0.1f);
+        var tm = labelGo.AddComponent<TextMesh>();
+        tm.text = label.ToUpperInvariant();
+        tm.fontSize = 26;
+        tm.characterSize = 0.055f;
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.alignment = TextAlignment.Center;
+        tm.color = gold;
+        tm.fontStyle = FontStyle.Bold;
+    }
+
+    static Vector3 EstimateRoomCenter()
+    {
+        var floor = FindNamedTransform("floor", "Floor");
+        if (floor != null)
+            return GetWorldBounds(floor).center;
+
+        var player = FindPlayerPos();
+        if (player.sqrMagnitude > 0.01f) return player;
+
+        return new Vector3(-3.5f, 6.5f, -8f); // classroom layout default
+    }
+
+    static Transform FindNamedTransform(params string[] exactOrParts)
+    {
+        for (int i = 0; i < exactOrParts.Length; i++)
+        {
+            var go = GameObject.Find(exactOrParts[i]);
+            if (go != null) return go.transform;
+        }
+
+        var all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude);
+        for (int p = 0; p < exactOrParts.Length; p++)
+        {
+            string key = exactOrParts[p];
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (string.Equals(all[i].name, key, System.StringComparison.OrdinalIgnoreCase))
+                    return all[i];
+            }
+        }
+        for (int p = 0; p < exactOrParts.Length; p++)
+        {
+            string key = exactOrParts[p];
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (all[i].name.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    return all[i];
+            }
+        }
+        return null;
+    }
+
+    static void SpawnCampusDoors()
     {
         Vector3 playerPos = FindPlayerPos();
 
@@ -77,7 +276,7 @@ public class SceneDoorBootstrap : MonoBehaviour
         }
     }
 
-    void SpawnStandaloneReturn(string target, string label)
+    static void SpawnStandaloneReturn(string target, string label)
     {
         Vector3 playerPos = FindPlayerPos();
         // Slightly ahead of spawn, easy reach
@@ -129,14 +328,20 @@ public class SceneDoorBootstrap : MonoBehaviour
             + new Vector3(faceNormal.x * ext.x, 0f, faceNormal.z * ext.z)
             + faceNormal * 0.12f;
         surface.y = b.min.y;
+        // Pull out of facade so mesh not buried in wall
+        surface += faceNormal * 0.55f;
 
         float facadeWidth = absX > absZ ? b.size.z : b.size.x;
-        float doorScale = Mathf.Clamp(facadeWidth / 5.5f, 1.0f, 1.85f);
+        float doorScale = Mathf.Clamp(facadeWidth / 5.5f, 1.15f, 2.0f);
 
+        // World-root door (building scale can squash children)
         var doorGo = new GameObject(doorName);
-        doorGo.transform.SetParent(building, true);
+        doorGo.transform.SetParent(null, true);
         doorGo.transform.position = surface;
         doorGo.transform.rotation = Quaternion.LookRotation(faceNormal, Vector3.up);
+
+        // Name is the stable id; tag optional (TagManager may lag)
+        SafeSetTag(doorGo, targetScene);
 
         BuildFacadeDoorVisual(doorGo.transform, displayName, doorScale, exitStyle: false);
         AddTriggerAndDoor(doorGo, targetScene, displayName, requireUnlock, areaName, requiredLevel, large: true);
@@ -160,10 +365,11 @@ public class SceneDoorBootstrap : MonoBehaviour
         var trigger = go.GetComponent<BoxCollider>();
         if (trigger == null) trigger = go.AddComponent<BoxCollider>();
         trigger.isTrigger = true;
-        trigger.center = new Vector3(0f, 1.4f, 0.7f);
+        // Large zone in front of door — easier E interact
+        trigger.center = new Vector3(0f, 1.4f, 1.1f);
         trigger.size = large
-            ? new Vector3(2.8f, 3.2f, 2.4f)
-            : new Vector3(2.2f, 2.8f, 1.8f);
+            ? new Vector3(3.4f, 3.4f, 3.2f)
+            : new Vector3(2.6f, 3.0f, 2.4f);
 
         var door = go.GetComponent<SceneDoor>();
         if (door == null) door = go.AddComponent<SceneDoor>();
@@ -201,8 +407,8 @@ public class SceneDoorBootstrap : MonoBehaviour
         var light = lightGo.AddComponent<Light>();
         light.type = LightType.Point;
         light.color = gold;
-        light.intensity = exitStyle ? 2.2f : 1.6f;
-        light.range = exitStyle ? 10f : 8f;
+        light.intensity = exitStyle ? 3.2f : 2.6f;
+        light.range = exitStyle ? 14f : 12f;
         light.shadows = LightShadows.None;
 
         var labelGo = new GameObject("DoorLabel");
@@ -233,7 +439,26 @@ public class SceneDoorBootstrap : MonoBehaviour
 
         var rend = box.GetComponent<Renderer>();
         if (rend != null)
-            rend.material.color = color;
+            rend.sharedMaterial = MakeSolidMat(color);
+    }
+
+    static Material MakeSolidMat(Color color)
+    {
+        // URP first — built-in Standard often invisible under URP
+        Shader sh = Shader.Find("Universal Render Pipeline/Unlit");
+        if (sh == null) sh = Shader.Find("Universal Render Pipeline/Lit");
+        if (sh == null) sh = Shader.Find("Unlit/Color");
+        if (sh == null) sh = Shader.Find("Standard");
+        if (sh == null) sh = Shader.Find("Sprites/Default");
+        var mat = new Material(sh != null ? sh : Shader.Find("Hidden/InternalErrorShader"));
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+        if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
+        if (mat.HasProperty("_EmissionColor"))
+        {
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissionColor", color * 0.35f);
+        }
+        return mat;
     }
 
     static Transform FindBuilding(params string[] nameParts)
@@ -269,9 +494,33 @@ public class SceneDoorBootstrap : MonoBehaviour
         return b;
     }
 
+    static void SafeSetTag(GameObject go, string targetScene)
+    {
+        if (go == null || string.IsNullOrEmpty(targetScene)) return;
+        string tag = null;
+        if (string.Equals(targetScene, "classroom", System.StringComparison.OrdinalIgnoreCase))
+            tag = "ClassroomDoor";
+        else if (string.Equals(targetScene, "MainScene", System.StringComparison.OrdinalIgnoreCase))
+            tag = "MainSceneDoor";
+        if (tag == null) return;
+
+        // FindGameObjectsWithTag throws if tag not in TagManager
+        try
+        {
+            GameObject.FindGameObjectsWithTag(tag);
+            go.tag = tag;
+        }
+        catch (UnityException)
+        {
+            // Tag not defined — door still works via name / SceneDoor target
+        }
+    }
+
     static Vector3 FindPlayerPos()
     {
-        var player = GameObject.FindGameObjectWithTag("Player");
+        GameObject player = null;
+        try { player = GameObject.FindGameObjectWithTag("Player"); }
+        catch (UnityException) { /* tag missing */ }
         if (player != null) return player.transform.position;
 
         var fps = Object.FindAnyObjectByType<FPSController>();

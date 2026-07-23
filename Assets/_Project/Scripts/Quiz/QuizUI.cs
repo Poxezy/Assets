@@ -33,11 +33,25 @@ namespace MetaEdu.Quiz
                 return;
             }
             Instance = this;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
         }
 
         void OnEnable()
         {
+            // Only wire quiz events — do not force UI open on menu scenes
+            string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (scene == "MainMenu" || scene == "Leaderboard")
+            {
+                ForceClose();
+                return;
+            }
             PrepareForQuiz();
+        }
+
+        void OnSceneLoaded(UnityEngine.SceneManagement.Scene s, UnityEngine.SceneManagement.LoadSceneMode m)
+        {
+            if (s.name == "MainMenu" || s.name == "Leaderboard")
+                ForceClose();
         }
 
         void OnDisable()
@@ -47,6 +61,7 @@ namespace MetaEdu.Quiz
 
         void OnDestroy()
         {
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
             if (Instance == this) Instance = null;
             Unbind();
         }
@@ -91,14 +106,28 @@ namespace MetaEdu.Quiz
             {
                 root.SetActive(true);
                 root.transform.SetAsLastSibling();
+                if (canvas != null)
+                {
+                    canvas.enabled = true;
+                    canvas.sortingOrder = 910;
+                    canvas.overrideSorting = true;
+                }
+                var ray = canvas != null ? canvas.GetComponent<GraphicRaycaster>() : null;
+                if (ray != null) ray.enabled = true;
+
                 var cg = root.GetComponent<CanvasGroup>();
                 if (cg == null) cg = root.AddComponent<CanvasGroup>();
-                cg.alpha = 0f;
-                UIMotion.FadeCanvas(cg, 1f, 0.18f);
+                // Visible + clickable immediately (fade was leaving alpha 0 / dead clicks)
+                cg.alpha = 1f;
+                cg.interactable = true;
+                cg.blocksRaycasts = true;
+                cg.ignoreParentGroups = true;
+                ExclusiveMenuUI.ForceAllButtons(root.transform);
                 var card = root.transform.Find("QuizCard") as RectTransform;
-                if (card != null) UIMotion.PopIn(card, 0.2f);
+                if (card != null) UIMotion.PopIn(card, 0.15f);
             }
 
+            Time.timeScale = 1f;
             UnlockCursor();
 
             if (titleText != null)
@@ -206,6 +235,14 @@ namespace MetaEdu.Quiz
             LockCursor();
         }
 
+        /// <summary>Hide quiz UI after abort / hard reset.</summary>
+        public void ForceClose()
+        {
+            waitingNext = false;
+            if (root != null) root.SetActive(false);
+            LockCursor();
+        }
+
         static void UnlockCursor()
         {
             Cursor.lockState = CursorLockMode.None;
@@ -246,7 +283,7 @@ namespace MetaEdu.Quiz
             canvas = cgo.GetComponent<Canvas>();
             if (canvas == null) canvas = cgo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 900;
+            canvas.sortingOrder = 910; // above pause (900) — one modal tier
 
             var scaler = cgo.GetComponent<CanvasScaler>();
             if (scaler == null) scaler = cgo.AddComponent<CanvasScaler>();
@@ -317,6 +354,13 @@ namespace MetaEdu.Quiz
             nextLabel = nextButton.GetComponentInChildren<TMP_Text>();
             nextButton.onClick.AddListener(OnNext);
             nextButton.gameObject.SetActive(false);
+
+            var rootCg = root.GetComponent<CanvasGroup>();
+            if (rootCg == null) rootCg = root.AddComponent<CanvasGroup>();
+            rootCg.alpha = 1f;
+            rootCg.interactable = true;
+            rootCg.blocksRaycasts = true;
+            rootCg.ignoreParentGroups = true;
 
             root.SetActive(false);
         }

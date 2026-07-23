@@ -18,11 +18,7 @@ namespace MetaEdu.Quiz
         public bool IsRunning => currentQuiz != null;
         public string CurrentTitle => currentQuiz != null ? currentQuiz.quizTitle : null;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void EnsureExists()
-        {
-            EnsureSystems();
-        }
+        // Boot via GameplaySceneSetup on gameplay scenes (not RuntimeInitialize)
 
         public static void EnsureSystems()
         {
@@ -95,11 +91,23 @@ namespace MetaEdu.Quiz
         /// <summary>Abort without finish rewards (used when stuck).</summary>
         public void ForceAbort()
         {
+            if (currentQuiz == null)
+            {
+                var quietUi = GetComponent<QuizUI>();
+                if (quietUi != null) quietUi.ForceClose();
+                return;
+            }
+
             var old = currentQuiz;
             currentQuiz = null;
             answerLocked = false;
+            // total=0 → KnowledgeItem treats as cancel, not collect
+            OnQuizFinished?.Invoke(0, 0, 0);
             if (old != null)
                 Destroy(old);
+
+            var ui = GetComponent<QuizUI>();
+            if (ui != null) ui.ForceClose();
         }
 
         private void LoadQuestion()

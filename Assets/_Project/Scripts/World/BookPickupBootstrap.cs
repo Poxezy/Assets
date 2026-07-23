@@ -1,28 +1,23 @@
 using UnityEngine;
 
 /// <summary>
-/// Auto-wires book objects as coin-style KnowledgeItem pickups.
-/// Finds names containing "book" that lack KnowledgeItem.
+/// Wires book objects as KnowledgeItem pickups.
+/// Call from GameplaySceneSetup (scene Systems GO) — no RuntimeInitialize.
 /// </summary>
 public class BookPickupBootstrap : MonoBehaviour
 {
     const int DefaultPoints = 50;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    static void AutoBootstrap()
+    void Start()
+    {
+        WireBooksInActiveScene();
+    }
+
+    public static void WireBooksInActiveScene()
     {
         string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
         if (scene == "MainMenu" || scene == "Leaderboard") return;
-
-        var go = new GameObject("BookPickupBootstrap");
-        go.AddComponent<BookPickupBootstrap>();
-    }
-
-    void Start()
-    {
-        string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
         WireBooksInScene(scene);
-        Destroy(gameObject);
     }
 
     static void WireBooksInScene(string sceneName)

@@ -34,9 +34,46 @@ public class KnowledgeItem : MonoBehaviour
 
     public static void ClearAllCollected()
     {
+        // Wipe list + legacy per-id flags for known scene books
+        string list = PlayerPrefs.GetString(CollectedListKey, "");
+        if (!string.IsNullOrEmpty(list))
+        {
+            int start = 0;
+            while (start <= list.Length)
+            {
+                int comma = list.IndexOf(',', start);
+                if (comma < 0) comma = list.Length;
+                if (comma > start)
+                {
+                    string id = list.Substring(start, comma - start);
+                    PlayerPrefs.DeleteKey("KnowledgeItem_" + id + "_Collected");
+                }
+                start = comma + 1;
+                if (comma >= list.Length) break;
+            }
+        }
         PlayerPrefs.DeleteKey(CollectedListKey);
         PlayerPrefs.DeleteKey("KnowledgeItem_" + DefaultItemId + "_Collected");
         PlayerPrefs.Save();
+
+        // Revive books hidden this session
+        var items = Object.FindObjectsByType<KnowledgeItem>(FindObjectsInactive.Include);
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (items[i] != null)
+                items[i].ReviveAfterReset();
+        }
+    }
+
+    /// <summary>Called after progress reset — show book again, clear runtime flags.</summary>
+    public void ReviveAfterReset()
+    {
+        UnbindQuiz();
+        hasBeenCollected = false;
+        quizPending = false;
+        playerInside = false;
+        if (!gameObject.activeSelf)
+            gameObject.SetActive(true);
     }
 
     private void Awake()
@@ -163,8 +200,14 @@ public class KnowledgeItem : MonoBehaviour
 
     void OnQuizDone(int percent, int correct, int total)
     {
-        Debug.Log("KnowledgeItem: quiz done " + percent + "% → collect " + itemId);
         UnbindQuiz();
+        // total==0 → ForceAbort / cancel, jangan collect
+        if (total <= 0)
+        {
+            Debug.Log("KnowledgeItem: quiz aborted → " + itemId);
+            return;
+        }
+        Debug.Log("KnowledgeItem: quiz done " + percent + "% → collect " + itemId);
         CompleteCollect();
     }
 

@@ -30,9 +30,43 @@ public class GamificationUI : MonoBehaviour
         Canvas canvas = GetComponentInParent<Canvas>();
         if (canvas == null) canvas = FindAnyObjectByType<Canvas>();
         if (canvas != null)
-            ExclusiveUIStyler.Apply(canvas.transform);
+        {
+            // Gameplay: HUD + reward only
+            HideLegacyMenuOnGameplay(canvas.transform);
+            Transform hud = FindChildByName(canvas.transform, "HDDPanel")
+                ?? FindChildByName(canvas.transform, "HUDPanel");
+            if (hud != null)
+                ExclusiveUIStyler.Apply(hud);
+            if (rewardPanel != null)
+                ExclusiveUIStyler.Apply(rewardPanel.transform);
+        }
 
         StartCoroutine(WaitForScoreManager());
+    }
+
+    static void HideLegacyMenuOnGameplay(Transform canvasRoot)
+    {
+        if (canvasRoot == null) return;
+        // Thin guard if old chrome reappears in hierarchy
+        string[] hide = { "Menupanel", "MenuPanel", "Background", "PausePanel", "PauseTitle" };
+        for (int i = 0; i < hide.Length; i++)
+        {
+            var t = FindChildByName(canvasRoot, hide[i]);
+            if (t == null) continue;
+            if (IsUnderName(t, "HDDPanel") || IsUnderName(t, "HUDPanel") || IsUnderName(t, "RewardPanel"))
+                continue;
+            t.gameObject.SetActive(false);
+        }
+    }
+
+    static bool IsUnderName(Transform t, string ancestorName)
+    {
+        while (t != null)
+        {
+            if (t.name == ancestorName) return true;
+            t = t.parent;
+        }
+        return false;
     }
 
     private IEnumerator WaitForScoreManager()

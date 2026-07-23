@@ -15,6 +15,7 @@ namespace MetaEdu.Quest
         RectTransform needleRt;
         TMP_Text distText;
         TMP_Text labelText;
+        TMP_Text titleText;
         CanvasGroup group;
         bool built;
 
@@ -47,7 +48,6 @@ namespace MetaEdu.Quest
                 return;
             }
 
-            // Hide under quiz
             if (MetaEdu.Quiz.QuizManager.Instance != null && MetaEdu.Quiz.QuizManager.Instance.IsRunning)
             {
                 SetVisible(false);
@@ -56,34 +56,54 @@ namespace MetaEdu.Quest
 
             EnsureUI();
             var wp = QuestWaypointService.Instance;
-            if (wp == null || !wp.HasTarget)
+            bool hasPin = wp != null && wp.HasTarget;
+
+            string label = null;
+            if (hasPin)
+                label = wp.TargetLabel;
+            else if (QuestManager.Instance != null)
+                label = QuestManager.Instance.GetNextStepText();
+
+            if (string.IsNullOrEmpty(label)
+                || label.IndexOf("Tidak ada misi", System.StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                if (labelText != null)
-                    labelText.text = "Tidak ada target misi";
-                if (distText != null)
-                    distText.text = "—";
-                if (needleRt != null)
-                    needleRt.localRotation = Quaternion.identity;
+                if (titleText != null) titleText.text = "ARAH";
+                if (labelText != null) labelText.text = "Tidak ada target misi";
+                if (distText != null) distText.text = "—";
+                if (needleRt != null) needleRt.localRotation = Quaternion.identity;
                 SetVisible(true);
-                if (group != null) group.alpha = 0.55f;
+                if (group != null) group.alpha = 0.5f;
                 return;
             }
 
             SetVisible(true);
-            if (group != null) group.alpha = 1f;
+            if (group != null) group.alpha = hasPin ? 1f : 0.7f;
 
-            float yaw = wp.GetYawToTarget();
-            if (needleRt != null)
-                needleRt.localRotation = Quaternion.Euler(0f, 0f, -yaw);
+            if (titleText != null)
+                titleText.text = hasPin ? "ARAH MISI" : "LANGKAH";
 
-            float dist = wp.GetDistanceToTarget();
-            if (distText != null)
-                distText.text = dist >= 0f ? Mathf.RoundToInt(dist) + " m" : "—";
+            if (hasPin)
+            {
+                float yaw = wp.GetYawToTarget();
+                if (needleRt != null)
+                    needleRt.localRotation = Quaternion.Euler(0f, 0f, -yaw);
+
+                float dist = wp.GetDistanceToTarget();
+                if (distText != null)
+                    distText.text = dist >= 0f ? Mathf.RoundToInt(dist) + " m" : "—";
+            }
+            else
+            {
+                if (needleRt != null)
+                    needleRt.localRotation = Quaternion.identity;
+                if (distText != null)
+                    distText.text = "…";
+            }
 
             if (labelText != null)
             {
-                string lab = wp.TargetLabel ?? "";
-                if (lab.Length > 42) lab = lab.Substring(0, 41) + "…";
+                string lab = label ?? "";
+                if (lab.Length > 48) lab = lab.Substring(0, 47) + "…";
                 labelText.text = lab;
             }
         }
@@ -136,8 +156,8 @@ namespace MetaEdu.Quest
             prt.anchorMin = new Vector2(0.5f, 1f);
             prt.anchorMax = new Vector2(0.5f, 1f);
             prt.pivot = new Vector2(0.5f, 1f);
-            prt.anchoredPosition = new Vector2(0f, -18f);
-            prt.sizeDelta = new Vector2(280f, 86f);
+            prt.anchoredPosition = new Vector2(0f, -16f);
+            prt.sizeDelta = new Vector2(340f, 72f);
 
             var pimg = panel.AddComponent<Image>();
             pimg.color = UITheme.HudPanel;
@@ -147,45 +167,67 @@ namespace MetaEdu.Quest
             group.blocksRaycasts = false;
 
             var outline = panel.AddComponent<Outline>();
-            outline.effectColor = new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.5f);
-            outline.effectDistance = new Vector2(1.2f, -1.2f);
+            outline.effectColor = new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.55f);
+            outline.effectDistance = new Vector2(1.25f, -1.25f);
+
+            // Gold top accent
+            var accent = Create("CompassAccent", panel.transform);
+            var art = accent.GetComponent<RectTransform>();
+            art.anchorMin = new Vector2(0f, 1f);
+            art.anchorMax = new Vector2(1f, 1f);
+            art.pivot = new Vector2(0.5f, 1f);
+            art.anchoredPosition = Vector2.zero;
+            art.sizeDelta = new Vector2(0f, 2f);
+            accent.AddComponent<Image>().color = UITheme.Gold;
 
             // Ring
             var ring = Create("CompassRing", panel.transform);
             var rrt = ring.GetComponent<RectTransform>();
             rrt.anchorMin = rrt.anchorMax = new Vector2(0f, 0.5f);
             rrt.pivot = new Vector2(0.5f, 0.5f);
-            rrt.anchoredPosition = new Vector2(44f, 0f);
-            rrt.sizeDelta = new Vector2(52f, 52f);
+            rrt.anchoredPosition = new Vector2(40f, -2f);
+            rrt.sizeDelta = new Vector2(44f, 44f);
             var ringImg = ring.AddComponent<Image>();
             ringImg.color = UITheme.CardInner;
             ringImg.raycastTarget = false;
+            var ringOutline = ring.AddComponent<Outline>();
+            ringOutline.effectColor = new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.45f);
+            ringOutline.effectDistance = new Vector2(1f, -1f);
 
-            // Needle (triangle-ish via stretched image)
             var needle = Create("CompassNeedle", ring.transform);
             needleRt = needle.GetComponent<RectTransform>();
             needleRt.anchorMin = needleRt.anchorMax = new Vector2(0.5f, 0.5f);
-            needleRt.pivot = new Vector2(0.5f, 0.15f);
+            needleRt.pivot = new Vector2(0.5f, 0.12f);
             needleRt.anchoredPosition = Vector2.zero;
-            needleRt.sizeDelta = new Vector2(8f, 28f);
+            needleRt.sizeDelta = new Vector2(7f, 24f);
             var nimg = needle.AddComponent<Image>();
             nimg.color = UITheme.Gold;
             nimg.raycastTarget = false;
 
-            distText = CreateTmp("CompassDist", panel.transform, "—", 18, UITheme.GoldSoft, FontStyles.Bold);
+            titleText = CreateTmp("CompassTitle", panel.transform, "ARAH MISI", 11, UITheme.GoldSoft, FontStyles.Bold);
+            var trt = titleText.rectTransform;
+            trt.anchorMin = new Vector2(0f, 1f);
+            trt.anchorMax = new Vector2(1f, 1f);
+            trt.pivot = new Vector2(0f, 1f);
+            trt.anchoredPosition = new Vector2(78f, -8f);
+            trt.sizeDelta = new Vector2(-90f, 16f);
+            titleText.alignment = TextAlignmentOptions.Left;
+            titleText.characterSpacing = 2f;
+
+            distText = CreateTmp("CompassDist", panel.transform, "—", 20, UITheme.Gold, FontStyles.Bold);
             var drt = distText.rectTransform;
             drt.anchorMin = new Vector2(0f, 0.5f);
             drt.anchorMax = new Vector2(1f, 1f);
-            drt.offsetMin = new Vector2(84f, 4f);
-            drt.offsetMax = new Vector2(-12f, -8f);
+            drt.offsetMin = new Vector2(78f, 2f);
+            drt.offsetMax = new Vector2(-14f, -22f);
             distText.alignment = TextAlignmentOptions.Left;
 
             labelText = CreateTmp("CompassLabel", panel.transform, "Target misi", 12, UITheme.Cream, FontStyles.Normal);
             var lrt = labelText.rectTransform;
             lrt.anchorMin = new Vector2(0f, 0f);
-            lrt.anchorMax = new Vector2(1f, 0.5f);
-            lrt.offsetMin = new Vector2(84f, 8f);
-            lrt.offsetMax = new Vector2(-12f, -2f);
+            lrt.anchorMax = new Vector2(1f, 0.48f);
+            lrt.offsetMin = new Vector2(78f, 8f);
+            lrt.offsetMax = new Vector2(-14f, -2f);
             labelText.alignment = TextAlignmentOptions.Left;
             UITheme.FitText(labelText, 12f, true);
         }
@@ -213,7 +255,8 @@ namespace MetaEdu.Quest
             tmp.color = color;
             tmp.fontStyle = style;
             tmp.raycastTarget = false;
-            UITheme.FitText(tmp, size, true);
+            tmp.enableAutoSizing = false;
+            tmp.fontSize = size;
             return tmp;
         }
     }

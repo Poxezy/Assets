@@ -7,6 +7,7 @@ namespace MetaEdu.Quest
     {
         Transform beam;
         Transform orb;
+        Transform ring;
         Light pointLight;
         bool visible;
         float pulse;
@@ -19,35 +20,44 @@ namespace MetaEdu.Quest
 
         void Build()
         {
-            // Pole
+            // Tall beam so visible across campus yard
             var pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             pole.name = "MarkerPole";
             pole.transform.SetParent(transform, false);
-            pole.transform.localScale = new Vector3(0.08f, 1.1f, 0.08f);
-            pole.transform.localPosition = new Vector3(0f, 1.1f, 0f);
+            pole.transform.localScale = new Vector3(0.12f, 2.2f, 0.12f);
+            pole.transform.localPosition = new Vector3(0f, 2.2f, 0f);
             Object.Destroy(pole.GetComponent<Collider>());
-            ApplyGoldMat(pole.GetComponent<Renderer>(), 0.55f);
+            ApplyGoldMat(pole.GetComponent<Renderer>(), 0.7f);
             beam = pole.transform;
 
-            // Orb
             var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             sphere.name = "MarkerOrb";
             sphere.transform.SetParent(transform, false);
-            sphere.transform.localScale = Vector3.one * 0.35f;
-            sphere.transform.localPosition = new Vector3(0f, 2.35f, 0f);
+            sphere.transform.localScale = Vector3.one * 0.55f;
+            sphere.transform.localPosition = new Vector3(0f, 4.6f, 0f);
             Object.Destroy(sphere.GetComponent<Collider>());
-            ApplyGoldMat(sphere.GetComponent<Renderer>(), 1f);
+            ApplyGoldMat(sphere.GetComponent<Renderer>(), 1.2f);
             orb = sphere.transform;
 
-            // Light
+            // Ground ring
+            var ringGo = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            ringGo.name = "MarkerRing";
+            ringGo.transform.SetParent(transform, false);
+            ringGo.transform.localScale = new Vector3(1.4f, 0.03f, 1.4f);
+            ringGo.transform.localPosition = new Vector3(0f, 0.05f, 0f);
+            Object.Destroy(ringGo.GetComponent<Collider>());
+            ApplyGoldMat(ringGo.GetComponent<Renderer>(), 0.9f);
+            ring = ringGo.transform;
+
             var lightGo = new GameObject("MarkerLight");
             lightGo.transform.SetParent(transform, false);
-            lightGo.transform.localPosition = new Vector3(0f, 2.35f, 0f);
+            lightGo.transform.localPosition = new Vector3(0f, 4.6f, 0f);
             pointLight = lightGo.AddComponent<Light>();
             pointLight.type = LightType.Point;
             pointLight.color = UITheme.Gold;
-            pointLight.intensity = 1.4f;
-            pointLight.range = 6f;
+            pointLight.intensity = 2.4f;
+            pointLight.range = 14f;
+            pointLight.shadows = LightShadows.None;
         }
 
         static void ApplyGoldMat(Renderer r, float intensity)
@@ -94,17 +104,18 @@ namespace MetaEdu.Quest
         {
             if (beam != null) beam.gameObject.SetActive(on);
             if (orb != null) orb.gameObject.SetActive(on);
+            if (ring != null) ring.gameObject.SetActive(on);
             if (pointLight != null) pointLight.enabled = on;
         }
 
         void Update()
         {
             if (!visible || orb == null) return;
-            pulse += Time.unscaledDeltaTime * 2.5f;
-            float s = 0.32f + Mathf.Sin(pulse) * 0.05f;
+            pulse += Time.unscaledDeltaTime * 2.8f;
+            float s = 0.5f + Mathf.Sin(pulse) * 0.08f;
             orb.localScale = Vector3.one * s;
             if (pointLight != null)
-                pointLight.intensity = 1.2f + Mathf.Sin(pulse) * 0.35f;
+                pointLight.intensity = 2.0f + Mathf.Sin(pulse) * 0.55f;
         }
     }
 }

@@ -1,30 +1,54 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Local leaderboard display + exclusive dark-gold style.
+/// Local leaderboard display + exclusive dark-gold style + working Back.
 /// </summary>
 public class LeaderboardDisplay : MonoBehaviour
 {
     [SerializeField] private TMP_Text leaderboardText;
     [SerializeField] private int topCount = 10;
 
+    Canvas rootCanvas;
+    CanvasGroup canvasGroup;
+    bool leaving;
+
     private void Start()
     {
         UIMotion.EnsureInit();
-        Canvas canvas = FindAnyObjectByType<Canvas>();
-        if (canvas != null)
+        EventSystemGuard.Ensure();
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        rootCanvas = GetComponentInParent<Canvas>();
+        if (rootCanvas == null) rootCanvas = FindAnyObjectByType<Canvas>();
+        if (rootCanvas == null)
         {
-            ExclusiveUIStyler.Apply(canvas.transform);
-            var cg = canvas.GetComponent<CanvasGroup>();
-            if (cg == null) cg = canvas.gameObject.AddComponent<CanvasGroup>();
-            cg.alpha = 0f;
-            UIMotion.FadeCanvas(cg, 1f, 0.25f);
+            Debug.LogError("LeaderboardDisplay: no Canvas.");
+            return;
         }
 
-        EnsureBackButton(canvas);
+        // Kill full-screen raycast blockers under canvas (Background Image, etc.)
+        FixCanvasRaycasts(rootCanvas);
+
+        if (rootCanvas.GetComponent<GraphicRaycaster>() == null)
+            rootCanvas.gameObject.AddComponent<GraphicRaycaster>();
+        rootCanvas.sortingOrder = Mathf.Max(rootCanvas.sortingOrder, 100);
+
+        canvasGroup = rootCanvas.GetComponent<CanvasGroup>();
+        if (canvasGroup == null) canvasGroup = rootCanvas.gameObject.AddComponent<CanvasGroup>();
+        canvasGroup.alpha = 1f;
+        canvasGroup.interactable = true;
+        canvasGroup.blocksRaycasts = true;
+        canvasGroup.ignoreParentGroups = true;
+
+        ExclusiveUIStyler.Apply(rootCanvas.transform);
+        EnsureBackButton(rootCanvas);
+        ExclusiveMenuUI.ForceAllButtons(rootCanvas.transform);
         RefreshLeaderboard();
     }
 
@@ -70,50 +94,100 @@ public class LeaderboardDisplay : MonoBehaviour
 
     public void BackToMainMenu()
     {
-        Canvas canvas = FindAnyObjectByType<Canvas>();
-        if (canvas != null)
-        {
-            var cg = canvas.GetComponent<CanvasGroup>();
-            if (cg == null) cg = canvas.gameObject.AddComponent<CanvasGroup>();
-            UIMotion.FadeAndLoad(cg, "MainMenu", 0.2f);
-            return;
-        }
+        if (leaving) return;
+        leaving = true;
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // Direct load — more reliable than fade if canvas alpha was 0
         SceneManager.LoadScene("MainMenu");
     }
 
     void EnsureBackButton(Canvas canvas)
     {
         if (canvas == null) return;
-        if (GameObject.Find("BackButton") != null) return;
 
-        var go = new GameObject("BackButton", typeof(RectTransform));
-        go.transform.SetParent(canvas.transform, false);
+        // Reuse or rebuild
+        Transform existing = canvas.transform.Find("BackButton");
+        GameObject go;
+        if (existing != null)
+            go = existing.gameObject;
+        else
+        {
+            go = new GameObject("BackButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(canvas.transform, false);
+        }
+
         var rt = go.GetComponent<RectTransform>();
         rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
         rt.pivot = new Vector2(0f, 1f);
         rt.anchoredPosition = new Vector2(40, -40);
-        rt.sizeDelta = new Vector2(180, 52);
+        rt.sizeDelta = new Vector2(200, 56);
+        go.transform.SetAsLastSibling();
 
-        var img = go.AddComponent<Image>();
+        var img = go.GetComponent<Image>();
+        if (img == null) img = go.AddComponent<Image>();
         img.color = Color.white;
-        var btn = go.AddComponent<Button>();
+        img.raycastTarget = true;
+
+        var btn = go.GetComponent<Button>();
+        if (btn == null) btn = go.AddComponent<Button>();
         btn.targetGraphic = img;
+        btn.interactable = true;
+        btn.transition = Selectable.Transition.ColorTint;
+        btn.colors = UITheme.ButtonColors();
+        btn.onClick.RemoveAllListeners();
         btn.onClick.AddListener(BackToMainMenu);
 
-        var textGo = new GameObject("Text", typeof(RectTransform));
-        textGo.transform.SetParent(go.transform, false);
-        var trt = textGo.GetComponent<RectTransform>();
-        trt.anchorMin = Vector2.zero;
-        trt.anchorMax = Vector2.one;
-        trt.offsetMin = Vector2.zero;
-        trt.offsetMax = Vector2.zero;
-        var tmp = textGo.AddComponent<TextMeshProUGUI>();
-        tmp.text = "← BACK";
-        tmp.fontSize = 22;
+        TMP_Text tmp = go.GetComponentInChildren<TMP_Text>(true);
+        if (tmp == null)
+        {
+            var textGo = new GameObject("Text", typeof(RectTransform));
+            textGo.transform.SetParent(go.transform, false);
+            var trt = textGo.GetComponent<RectTransform>();
+            trt.anchorMin = Vector2.zero;
+            trt.anchorMax = Vector2.one;
+            trt.offsetMin = Vector2.zero;
+            trt.offsetMax = Vector2.zero;
+            tmp = textGo.AddComponent<TextMeshProUGUI>();
+        }
+        tmp.text = "← KEMBALI";
+        tmp.fontSize = 20;
         tmp.alignment = TextAlignmentOptions.Center;
-        tmp.color = UITheme.Cream;
+        tmp.color = UITheme.TextOnGold;
         tmp.fontStyle = FontStyles.Bold;
+        tmp.raycastTarget = false;
+
+        if (go.GetComponent<UIButtonPressFx>() == null)
+            go.AddComponent<UIButtonPressFx>();
 
         ExclusiveUIStyler.Apply(go.transform);
+        ExclusiveMenuUI.ForceAllButtons(go.transform);
+    }
+
+    static void FixCanvasRaycasts(Canvas canvas)
+    {
+        if (canvas == null) return;
+        // Decorative full-screen images must not steal clicks from buttons
+        var images = canvas.GetComponentsInChildren<Image>(true);
+        for (int i = 0; i < images.Length; i++)
+        {
+            var img = images[i];
+            if (img == null) continue;
+            // Keep raycast on actual buttons only
+            if (img.GetComponent<Button>() != null) continue;
+            string n = img.gameObject.name;
+            if (n.IndexOf("Background", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || n.IndexOf("Panel", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || n.IndexOf("Dim", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                img.raycastTarget = false;
+            }
+        }
+
+        var texts = canvas.GetComponentsInChildren<TMP_Text>(true);
+        for (int i = 0; i < texts.Length; i++)
+            if (texts[i] != null) texts[i].raycastTarget = false;
     }
 }

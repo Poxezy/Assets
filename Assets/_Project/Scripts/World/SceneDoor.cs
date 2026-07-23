@@ -23,7 +23,9 @@ public class SceneDoor : MonoBehaviour
     [SerializeField] KeyCode interactKey = KeyCode.E;
 
     bool playerInside;
+    float proximityTimer;
     static SceneDoorPromptUI promptUI;
+    const float ProximityRadius = 3.2f;
 
     public void Configure(
         string scene,
@@ -57,23 +59,71 @@ public class SceneDoor : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (!other.CompareTag("Player")) return;
-        playerInside = true;
-        ShowPrompt(BuildPrompt());
+        if (!IsPlayer(other)) return;
+        SetInside(true);
+    }
+
+    void OnTriggerStay(Collider other)
+    {
+        if (!IsPlayer(other)) return;
+        SetInside(true);
     }
 
     void OnTriggerExit(Collider other)
     {
-        if (!other.CompareTag("Player")) return;
-        playerInside = false;
-        HidePrompt();
+        if (!IsPlayer(other)) return;
+        SetInside(false);
     }
 
     void Update()
     {
+        // Fallback proximity — CC trigger often miss
+        proximityTimer += Time.unscaledDeltaTime;
+        if (proximityTimer >= 0.15f)
+        {
+            proximityTimer = 0f;
+            bool near = IsPlayerNearby(ProximityRadius);
+            if (near != playerInside)
+                SetInside(near);
+        }
+
         if (!playerInside) return;
         if (!Input.GetKeyDown(interactKey)) return;
         TryEnter();
+    }
+
+    void SetInside(bool inside)
+    {
+        if (playerInside == inside) return;
+        playerInside = inside;
+        if (inside) ShowPrompt(BuildPrompt());
+        else HidePrompt();
+    }
+
+    static bool IsPlayer(Collider other)
+    {
+        if (other == null) return false;
+        if (other.CompareTag("Player")) return true;
+        if (other.GetComponent<FPSController>() != null) return true;
+        if (other.GetComponentInParent<FPSController>() != null) return true;
+        if (other.GetComponent<CharacterController>() != null) return true;
+        if (other.GetComponentInParent<CharacterController>() != null) return true;
+        return false;
+    }
+
+    bool IsPlayerNearby(float radius)
+    {
+        var player = GameObject.FindGameObjectWithTag("Player");
+        if (player == null)
+        {
+            var fps = FindAnyObjectByType<FPSController>();
+            if (fps != null) player = fps.gameObject;
+        }
+        if (player == null) return false;
+        Vector3 a = transform.position;
+        Vector3 b = player.transform.position;
+        a.y = b.y = 0f;
+        return (a - b).sqrMagnitude <= radius * radius;
     }
 
     void TryEnter()
@@ -103,10 +153,12 @@ public class SceneDoor : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        if (string.Equals(targetScene, "classroom", System.StringComparison.OrdinalIgnoreCase)
-            && MetaEdu.Quest.QuestManager.Instance != null)
+        if (MetaEdu.Quest.QuestManager.Instance != null)
         {
-            MetaEdu.Quest.QuestManager.Instance.NotifyEnteredClassroom();
+            if (string.Equals(targetScene, "classroom", System.StringComparison.OrdinalIgnoreCase))
+                MetaEdu.Quest.QuestManager.Instance.NotifyEnteredClassroom();
+            else if (string.Equals(targetScene, "MainScene", System.StringComparison.OrdinalIgnoreCase))
+                MetaEdu.Quest.QuestManager.Instance.NotifyEnteredMainScene();
         }
 
         SceneManager.LoadScene(targetScene);

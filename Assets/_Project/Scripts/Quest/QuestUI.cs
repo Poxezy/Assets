@@ -25,12 +25,8 @@ namespace MetaEdu.Quest
         float toastTimer;
         bool cardOpen = true;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Boot()
+        public static void EnsureExists()
         {
-            if (Instance != null) return;
-            string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-            if (scene == "MainMenu" || scene == "Leaderboard") return;
             QuestManager.EnsureSystems();
         }
 

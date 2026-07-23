@@ -1,13 +1,14 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
+/// <summary>
+/// Title screen — single exclusive menu layout only.
+/// </summary>
 public class MainMenuController : MonoBehaviour
 {
-    [SerializeField] ProfilePanel profilePanel;
-    [SerializeField] HelpPanel helpPanel;
-
+    ProfilePanel profilePanel;
+    HelpPanel helpPanel;
     Canvas rootCanvas;
     CanvasGroup canvasGroup;
     bool transitioning;
@@ -16,76 +17,71 @@ public class MainMenuController : MonoBehaviour
     {
         UIMotion.EnsureInit();
         EventSystemGuard.Ensure();
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
 
-        rootCanvas = FindAnyObjectByType<Canvas>();
-        if (rootCanvas != null)
+        rootCanvas = GetComponentInChildren<Canvas>();
+        if (rootCanvas == null)
+            rootCanvas = FindAnyObjectByType<Canvas>();
+        if (rootCanvas == null)
         {
-            MainMenuVisuals.Apply(rootCanvas);
-            EnsureCanvasGroup();
-            PlayIntroMotion();
+            var go = new GameObject("MainMenuCanvas", typeof(RectTransform));
+            rootCanvas = go.AddComponent<Canvas>();
         }
 
-        if (profilePanel == null)
-            profilePanel = GetComponent<ProfilePanel>();
-        if (profilePanel == null)
-            profilePanel = gameObject.AddComponent<ProfilePanel>();
+        // Components first (no UI yet) — exclusive rebuild owns screen chrome
+        profilePanel = GetComponent<ProfilePanel>();
+        if (profilePanel == null) profilePanel = gameObject.AddComponent<ProfilePanel>();
+        helpPanel = GetComponent<HelpPanel>();
+        if (helpPanel == null) helpPanel = gameObject.AddComponent<HelpPanel>();
 
-        if (helpPanel == null)
-            helpPanel = GetComponent<HelpPanel>();
-        if (helpPanel == null)
-            helpPanel = gameObject.AddComponent<HelpPanel>();
+        BuildMenu();
+        // Side panels kept by ClearChildren skip; hide until opened
+        if (profilePanel != null) profilePanel.Hide();
+        if (helpPanel != null) helpPanel.Hide();
     }
 
-    void EnsureCanvasGroup()
+    void BuildMenu()
     {
-        if (rootCanvas == null) return;
-        canvasGroup = rootCanvas.GetComponent<CanvasGroup>();
-        if (canvasGroup == null)
-            canvasGroup = rootCanvas.gameObject.AddComponent<CanvasGroup>();
-    }
-
-    void PlayIntroMotion()
-    {
-        if (rootCanvas == null) return;
-
-        AnimateNamed(rootCanvas.transform, "Titletext", 0f, new Vector2(0f, 22f));
-        AnimateNamed(rootCanvas.transform, "Subtitle", 0.05f, new Vector2(0f, 16f));
-        AnimateNamed(rootCanvas.transform, "BrandRule", 0.08f, new Vector2(0f, 10f));
-        AnimateNamed(rootCanvas.transform, "MenuWelcomeChip", 0.08f, new Vector2(-24f, 0f));
-        AnimateNamed(rootCanvas.transform, "Menupanel", 0.12f, new Vector2(0f, -30f));
-        AnimateNamed(rootCanvas.transform, "MenuPanel", 0.12f, new Vector2(0f, -30f));
-        AnimateNamed(rootCanvas.transform, "MenuFooterHint", 0.28f, new Vector2(0f, -14f));
-
-        string[] btns =
+        var actions = new ExclusiveMenuUI.Actions
         {
-            "StartButton", "LeaderBoardButton", "SettingButton",
-            "HelpButton", "reset", "ExitButton"
+            Primary = StartGame,
+            Leaderboard = OpenLeaderboard,
+            Profile = OpenProfile,
+            Help = OpenHelp,
+            Reset = ResetProgress,
+            Exit = ExitGame
         };
-        for (int i = 0; i < btns.Length; i++)
-            AnimateNamed(rootCanvas.transform, btns[i], 0.16f + i * 0.045f, new Vector2(0f, -16f));
-    }
 
-    void AnimateNamed(Transform root, string name, float delay, Vector2 fromOffset)
-    {
-        Transform t = FindDeep(root, name);
-        if (t == null) return;
-        var rt = t as RectTransform;
-        if (rt == null) return;
-        var cg = t.GetComponent<CanvasGroup>();
-        if (cg == null) cg = t.gameObject.AddComponent<CanvasGroup>();
-        cg.alpha = 0f;
-        StartCoroutine(DelayedSlide(cg, rt, delay, fromOffset));
-    }
+        var result = ExclusiveMenuUI.Build(
+            rootCanvas.transform,
+            ExclusiveMenuUI.Mode.Title,
+            actions,
+            clearHost: true);
 
-    IEnumerator DelayedSlide(CanvasGroup cg, RectTransform rt, float delay, Vector2 fromOffset)
-    {
-        yield return new WaitForSecondsRealtime(delay);
-        if (cg == null || rt == null) yield break;
-        UIMotion.SlideFadeIn(cg, rt, fromOffset, 0.28f);
+        canvasGroup = result.Group;
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = 1f;
+            canvasGroup.blocksRaycasts = true;
+            canvasGroup.interactable = true;
+        }
+
+        ExclusiveMenuUI.ForceAllButtons(rootCanvas.transform);
     }
 
     public void StartGame()
     {
+        // Kill DDOL quiz dim that can steal clicks after reset
+        if (MetaEdu.Quiz.QuizManager.Instance != null)
+            MetaEdu.Quiz.QuizManager.Instance.ForceAbort();
+        if (MetaEdu.Quiz.QuizUI.Instance != null)
+            MetaEdu.Quiz.QuizUI.Instance.ForceClose();
+
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
         TransitionTo("campusyard");
     }
 
@@ -94,53 +90,59 @@ public class MainMenuController : MonoBehaviour
         TransitionTo("Leaderboard");
     }
 
-    void TransitionTo(string scene)
-    {
-        if (transitioning) return;
-        transitioning = true;
-        EnsureCanvasGroup();
-        if (canvasGroup != null)
-            UIMotion.FadeAndLoad(canvasGroup, scene, 0.22f);
-        else
-            SceneManager.LoadScene(scene);
-    }
-
     public void OpenProfile()
     {
-        if (helpPanel != null && helpPanel.IsOpen)
-            helpPanel.Hide();
-        if (profilePanel != null)
-            profilePanel.Show();
+        if (helpPanel != null && helpPanel.IsOpen) helpPanel.Hide();
+        if (profilePanel != null) profilePanel.Show();
     }
 
     public void OpenHelp()
     {
-        if (profilePanel != null && profilePanel.IsOpen)
-            profilePanel.Hide();
-        if (helpPanel != null)
-            helpPanel.Show();
+        if (profilePanel != null && profilePanel.IsOpen) profilePanel.Hide();
+        if (helpPanel != null) helpPanel.Show();
     }
 
-    public void OpenSettings()
+    public void OpenSettings() => OpenProfile();
+
+    void ResetProgress()
     {
-        OpenProfile();
+        var reset = GetComponent<ResetData>();
+        if (reset == null) reset = FindAnyObjectByType<ResetData>();
+        if (reset == null) reset = gameObject.AddComponent<ResetData>();
+        reset.ResetProgress();
+
+        // Re-enable menu after reset (fade/overlay may have left dead state)
+        transitioning = false;
+        Time.timeScale = 1f;
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = 1f;
+            canvasGroup.blocksRaycasts = true;
+            canvasGroup.interactable = true;
+        }
+        if (rootCanvas != null)
+            ExclusiveMenuUI.ForceAllButtons(rootCanvas.transform);
+        EventSystemGuard.Ensure();
     }
 
     public void ExitGame()
     {
-        Debug.Log("Keluar dari game");
         Application.Quit();
     }
 
-    static Transform FindDeep(Transform root, string name)
+    void TransitionTo(string scene)
     {
-        if (root == null) return null;
-        if (root.name == name) return root;
-        for (int i = 0; i < root.childCount; i++)
+        if (transitioning) return;
+        transitioning = true;
+        if (canvasGroup == null && rootCanvas != null)
+            canvasGroup = rootCanvas.GetComponent<CanvasGroup>();
+        if (canvasGroup != null)
         {
-            var f = FindDeep(root.GetChild(i), name);
-            if (f != null) return f;
+            canvasGroup.blocksRaycasts = true;
+            canvasGroup.interactable = true;
+            UIMotion.FadeAndLoad(canvasGroup, scene, 0.2f);
         }
-        return null;
+        else
+            SceneManager.LoadScene(scene);
     }
 }

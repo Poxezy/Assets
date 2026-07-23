@@ -21,14 +21,19 @@ public class HelpPanel : MonoBehaviour
 
     public void Show()
     {
-        if (panelRoot == null) BuildRuntimeUI();
+        EnsurePanel();
+        if (panelRoot == null) return;
         panelRoot.SetActive(true);
         panelRoot.transform.SetAsLastSibling();
         ExclusiveUIStyler.Apply(panelRoot.transform);
         StyleClose();
+        ExclusiveMenuUI.ForceAllButtons(panelRoot.transform);
         var cg = panelRoot.GetComponent<CanvasGroup>();
         if (cg == null) cg = panelRoot.AddComponent<CanvasGroup>();
-        cg.alpha = 0f;
+        cg.alpha = 1f;
+        cg.blocksRaycasts = true;
+        cg.interactable = true;
+        cg.ignoreParentGroups = true;
         UIMotion.FadeCanvas(cg, 1f, 0.18f);
         var card = panelRoot.transform.Find("HelpCard") as RectTransform;
         if (card != null) UIMotion.PopIn(card, 0.2f);
@@ -38,6 +43,23 @@ public class HelpPanel : MonoBehaviour
     {
         if (panelRoot != null)
             panelRoot.SetActive(false);
+    }
+
+    void EnsurePanel()
+    {
+        if (panelRoot == null)
+        {
+            built = false;
+            closeButton = null;
+            BuildRuntimeUI();
+            return;
+        }
+        var host = ResolveHostCanvas();
+        if (host != null && panelRoot.transform.parent != host.transform)
+        {
+            panelRoot.transform.SetParent(host.transform, false);
+            Stretch(panelRoot.GetComponent<RectTransform>());
+        }
     }
 
     void StyleClose()
@@ -73,17 +95,18 @@ public class HelpPanel : MonoBehaviour
 
     void BuildRuntimeUI()
     {
-        if (built) return;
+        if (built && panelRoot != null) return;
         built = true;
 
-        Canvas canvas = GetComponentInParent<Canvas>();
-        if (canvas == null) canvas = FindAnyObjectByType<Canvas>();
-        if (canvas == null) return;
+        Canvas canvas = ResolveHostCanvas();
+        if (canvas == null) { built = false; return; }
 
         panelRoot = new GameObject("HelpPanel", typeof(RectTransform));
         panelRoot.transform.SetParent(canvas.transform, false);
         Stretch(panelRoot.GetComponent<RectTransform>());
-        panelRoot.AddComponent<Image>().color = UITheme.DimOverlay;
+        var dim = panelRoot.AddComponent<Image>();
+        dim.color = UITheme.DimOverlay;
+        dim.raycastTarget = true;
 
         var card = new GameObject("HelpCard", typeof(RectTransform));
         card.transform.SetParent(panelRoot.transform, false);
@@ -169,6 +192,31 @@ public class HelpPanel : MonoBehaviour
 
         ExclusiveUIStyler.Apply(panelRoot.transform);
         StyleClose();
+    }
+
+    static Canvas ResolveHostCanvas()
+    {
+        var pause = GameObject.Find("ExclusivePauseRoot");
+        if (pause != null && pause.activeInHierarchy)
+        {
+            var pc = pause.GetComponent<Canvas>();
+            if (pc != null) return pc;
+        }
+        var all = Object.FindObjectsByType<Canvas>(FindObjectsInactive.Exclude);
+        Canvas best = null;
+        int bestSort = int.MinValue;
+        for (int i = 0; i < all.Length; i++)
+        {
+            var c = all[i];
+            if (c == null || !c.isActiveAndEnabled) continue;
+            if (c.renderMode != RenderMode.ScreenSpaceOverlay) continue;
+            if (c.sortingOrder >= bestSort)
+            {
+                bestSort = c.sortingOrder;
+                best = c;
+            }
+        }
+        return best != null ? best : Object.FindAnyObjectByType<Canvas>();
     }
 
     static void Stretch(RectTransform rt)

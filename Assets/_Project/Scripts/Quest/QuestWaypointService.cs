@@ -97,25 +97,68 @@ namespace MetaEdu.Quest
                 return;
             }
 
-            if (QuestManager.Instance == null
-                || !QuestManager.Instance.GetFocusTarget(out _, out var obj)
-                || obj == null)
+            if (QuestManager.Instance == null)
             {
                 ClearTarget();
                 return;
             }
 
-            TargetTag = obj.targetTag ?? "";
-            TargetLabel = string.IsNullOrEmpty(obj.hintText) ? obj.description : obj.hintText;
-
             EnsurePlayer();
-            Vector3? pos = ResolveTarget(TargetTag);
-            TargetPosition = pos;
 
-            if (pos.HasValue)
-                EnsureMarker();
-            else if (marker != null)
-                marker.Hide();
+            // Walk active objectives until one resolves to a world position
+            if (!TryResolveFocus(out var label, out var tag, out var pos))
+            {
+                // Keep label/hint even if no pin
+                if (QuestManager.Instance.GetFocusTarget(out _, out var obj) && obj != null)
+                {
+                    TargetTag = obj.targetTag ?? "";
+                    TargetLabel = string.IsNullOrEmpty(obj.hintText) ? obj.description : obj.hintText;
+                    TargetPosition = null;
+                    if (marker != null) marker.Hide();
+                }
+                else
+                {
+                    ClearTarget();
+                }
+                return;
+            }
+
+            TargetTag = tag;
+            TargetLabel = label;
+            TargetPosition = pos;
+            EnsureMarker();
+        }
+
+        bool TryResolveFocus(out string label, out string tag, out Vector3? pos)
+        {
+            label = "";
+            tag = "";
+            pos = null;
+
+            var qm = QuestManager.Instance;
+            if (qm == null) return false;
+
+            var active = qm.GetActiveQuestData();
+            for (int q = 0; q < active.Count; q++)
+            {
+                var quest = active[q];
+                if (quest?.objectives == null) continue;
+                for (int i = 0; i < quest.objectives.Count; i++)
+                {
+                    var obj = quest.objectives[i];
+                    if (obj == null || obj.isCompleted) continue;
+
+                    string t = obj.targetTag ?? "";
+                    Vector3? p = ResolveTarget(t);
+                    if (!p.HasValue) continue;
+
+                    tag = t;
+                    label = string.IsNullOrEmpty(obj.hintText) ? obj.description : obj.hintText;
+                    pos = p;
+                    return true;
+                }
+            }
+            return false;
         }
 
         void ClearTarget()
@@ -145,6 +188,9 @@ namespace MetaEdu.Quest
             if (string.Equals(tag, "ClassroomDoor", System.StringComparison.OrdinalIgnoreCase))
                 return FindClassroomDoor();
 
+            if (string.Equals(tag, "MainSceneDoor", System.StringComparison.OrdinalIgnoreCase))
+                return FindDoorToScene("MainScene", "mainscene", "main_scene", "Door_Main");
+
             return null;
         }
 
@@ -171,23 +217,44 @@ namespace MetaEdu.Quest
 
         Vector3? FindClassroomDoor()
         {
+            string scene = SceneManager.GetActiveScene().name;
+
+            // Inside classroom: guide to exit door back to campus
+            if (string.Equals(scene, "classroom", System.StringComparison.OrdinalIgnoreCase))
+            {
+                var exit = FindDoorToScene("campusyard", "Door_Return", "return", "keluar");
+                if (exit.HasValue) return exit;
+            }
+
+            // Campus / elsewhere: door into classroom
+            return FindDoorToScene("classroom", "classroom", "Door_Classroom");
+        }
+
+        /// <summary>First SceneDoor matching target scene, else name keywords.</summary>
+        Vector3? FindDoorToScene(string targetScene, params string[] nameHints)
+        {
             var doors = FindObjectsByType<SceneDoor>();
             if (doors == null || doors.Length == 0) return null;
 
             for (int i = 0; i < doors.Length; i++)
             {
                 if (doors[i] == null) continue;
-                if (string.Equals(doors[i].TargetScene, "classroom", System.StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(doors[i].TargetScene, targetScene, System.StringComparison.OrdinalIgnoreCase))
                     return doors[i].transform.position + Vector3.up * 2f;
             }
 
-            // Fallback: name contains classroom
+            if (nameHints == null || nameHints.Length == 0) return null;
+
             for (int i = 0; i < doors.Length; i++)
             {
                 if (doors[i] == null) continue;
                 string n = doors[i].gameObject.name;
-                if (n.IndexOf("classroom", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    return doors[i].transform.position + Vector3.up * 2f;
+                for (int h = 0; h < nameHints.Length; h++)
+                {
+                    if (string.IsNullOrEmpty(nameHints[h])) continue;
+                    if (n.IndexOf(nameHints[h], System.StringComparison.OrdinalIgnoreCase) >= 0)
+                        return doors[i].transform.position + Vector3.up * 2f;
+                }
             }
 
             return null;

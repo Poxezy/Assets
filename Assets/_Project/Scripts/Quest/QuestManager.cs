@@ -20,20 +20,19 @@ namespace MetaEdu.Quest
         public System.Action<QuestData> OnQuestCompleted;
         public System.Action<QuestData> OnQuestUpdated;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Boot()
-        {
-            string scene = SceneManager.GetActiveScene().name;
-            if (scene == "MainMenu" || scene == "Leaderboard") return;
-            EnsureSystems();
-        }
+        // Boot via GameplaySceneSetup on gameplay scenes
+
+        public static void EnsureExists() => EnsureSystems();
 
         public static void EnsureSystems()
         {
             if (Instance != null)
             {
+                Instance.EnsureExtraQuests();
+                Instance.EnsurePrereqUnlocks();
                 EnsureComponents(Instance.gameObject);
                 Instance.GetComponent<QuestUI>()?.Prepare();
+                Instance.GetComponent<QuestWaypointService>()?.Refresh();
                 return;
             }
 
@@ -41,6 +40,8 @@ namespace MetaEdu.Quest
             if (existing != null)
             {
                 Instance = existing;
+                existing.EnsureExtraQuests();
+                existing.EnsurePrereqUnlocks();
                 EnsureComponents(existing.gameObject);
                 existing.GetComponent<QuestUI>()?.Prepare();
                 return;
@@ -69,8 +70,10 @@ namespace MetaEdu.Quest
                 Instance = this;
                 DontDestroyOnLoad(gameObject);
                 SeedDefaultQuestsIfEmpty();
+                EnsureExtraQuests();
                 InitializeDatabase();
                 LoadProgressFromPrefs();
+                EnsurePrereqUnlocks();
                 EnsureComponents(gameObject);
             }
             else if (Instance != this)
@@ -131,7 +134,50 @@ namespace MetaEdu.Quest
                     100,
                     "",
                     Obj("enter_classroom", "Masuk ke Classroom", "Ikuti kompas ke pintu Classroom, tekan E", "ClassroomDoor", 1)),
+
+                MakeQuest(
+                    "visit_mainscene",
+                    "Jelajahi Main Scene",
+                    "Setelah kelas, temukan pintu Main Scene di Campus Yard dan masuk.",
+                    "visit_classroom",
+                    QuestStatus.Locked,
+                    100,
+                    "",
+                    Obj("enter_mainscene", "Masuk ke Main Scene", "Ikuti kompas ke pintu Main Scene, tekan E", "MainSceneDoor", 1)),
             };
+        }
+
+        /// <summary>Inject post-launch quests if save/session seeded before they existed.</summary>
+        void EnsureExtraQuests()
+        {
+            if (allQuests == null) allQuests = new List<QuestData>();
+            if (HasQuestId("visit_mainscene") || questDatabase.ContainsKey("visit_mainscene"))
+                return;
+
+            var q = MakeQuest(
+                "visit_mainscene",
+                "Jelajahi Main Scene",
+                "Setelah kelas, temukan pintu Main Scene di Campus Yard dan masuk.",
+                "visit_classroom",
+                QuestStatus.Locked,
+                100,
+                "",
+                Obj("enter_mainscene", "Masuk ke Main Scene", "Ikuti kompas ke pintu Main Scene, tekan E", "MainSceneDoor", 1));
+            allQuests.Add(q);
+            if (!questDatabase.ContainsKey(q.questID))
+            {
+                questDatabase.Add(q.questID, q);
+                seedOrder.Add(q.questID);
+            }
+        }
+
+        bool HasQuestId(string id)
+        {
+            if (allQuests == null) return false;
+            for (int i = 0; i < allQuests.Count; i++)
+                if (allQuests[i] != null && allQuests[i].questID == id)
+                    return true;
+            return false;
         }
 
         static QuestData MakeQuest(
@@ -315,6 +361,11 @@ namespace MetaEdu.Quest
             ReportObjective("enter_classroom", 1);
         }
 
+        public void NotifyEnteredMainScene()
+        {
+            ReportObjective("enter_mainscene", 1);
+        }
+
         void UnlockNextQuests(string completedQuestID)
         {
             foreach (var quest in questDatabase.Values)
@@ -325,6 +376,25 @@ namespace MetaEdu.Quest
                     ActivateQuest(quest.questID);
                 }
             }
+        }
+
+        /// <summary>After load: unlock/activate quests whose prereq already completed (new seeds).</summary>
+        void EnsurePrereqUnlocks()
+        {
+            bool any = false;
+            foreach (var quest in questDatabase.Values)
+            {
+                if (quest == null || quest.status != QuestStatus.Locked) continue;
+                if (string.IsNullOrEmpty(quest.prerequisiteQuestID)) continue;
+                if (!questDatabase.TryGetValue(quest.prerequisiteQuestID, out var pre) || pre == null)
+                    continue;
+                if (pre.status != QuestStatus.Completed) continue;
+
+                quest.status = QuestStatus.Available;
+                ActivateQuest(quest.questID);
+                any = true;
+            }
+            if (any) SaveProgressToPrefs();
         }
 
         public List<string> GetCompletedQuests()
@@ -356,11 +426,14 @@ namespace MetaEdu.Quest
             return list;
         }
 
-        /// <summary>Focus objective for compass / next-step UI.</summary>
+        /// <summary>Focus objective for compass / next-step UI. Prefer resolvable world targets.</summary>
         public bool GetFocusTarget(out QuestData quest, out QuestObjective objective)
         {
             quest = null;
             objective = null;
+            QuestData fallbackQ = null;
+            QuestObjective fallbackO = null;
+
             foreach (string id in EnumerateActiveOrdered())
             {
                 if (!questDatabase.TryGetValue(id, out var q) || q?.objectives == null) continue;
@@ -368,12 +441,70 @@ namespace MetaEdu.Quest
                 {
                     var obj = q.objectives[i];
                     if (obj == null || obj.isCompleted) continue;
-                    quest = q;
-                    objective = obj;
-                    return true;
+
+                    if (fallbackQ == null)
+                    {
+                        fallbackQ = q;
+                        fallbackO = obj;
+                    }
+
+                    // Prefer objectives that still have a world target in this scene
+                    if (ObjectiveLikelyResolvable(obj))
+                    {
+                        quest = q;
+                        objective = obj;
+                        return true;
+                    }
                 }
             }
+
+            if (fallbackQ != null)
+            {
+                quest = fallbackQ;
+                objective = fallbackO;
+                return true;
+            }
             return false;
+        }
+
+        static bool ObjectiveLikelyResolvable(QuestObjective obj)
+        {
+            if (obj == null) return false;
+            string tag = obj.targetTag ?? "";
+            if (string.IsNullOrEmpty(tag)) return false;
+
+            if (string.Equals(tag, "Book", System.StringComparison.OrdinalIgnoreCase))
+            {
+                var books = Object.FindObjectsByType<KnowledgeItem>();
+                if (books == null) return false;
+                for (int i = 0; i < books.Length; i++)
+                    if (books[i] != null && books[i].gameObject.activeInHierarchy)
+                        return true;
+                return false;
+            }
+
+            if (string.Equals(tag, "ClassroomDoor", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(tag, "MainSceneDoor", System.StringComparison.OrdinalIgnoreCase))
+            {
+                string want = string.Equals(tag, "ClassroomDoor", System.StringComparison.OrdinalIgnoreCase)
+                    ? "classroom" : "MainScene";
+                string scene = SceneManager.GetActiveScene().name;
+                if (string.Equals(tag, "ClassroomDoor", System.StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(scene, "classroom", System.StringComparison.OrdinalIgnoreCase))
+                    want = "campusyard";
+
+                var doors = Object.FindObjectsByType<SceneDoor>();
+                if (doors == null) return false;
+                for (int i = 0; i < doors.Length; i++)
+                {
+                    if (doors[i] == null) continue;
+                    if (string.Equals(doors[i].TargetScene, want, System.StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                return false;
+            }
+
+            return true;
         }
 
         public string GetNextStepText()
@@ -428,7 +559,32 @@ namespace MetaEdu.Quest
             if (clearPrefs)
                 ClearProgressPrefs();
 
+            // Start() only runs once on DDOL — re-kick intro after reset
+            RestartIntroQuest();
             OnQuestUpdated?.Invoke(null);
+        }
+
+        /// <summary>Activate first root Available quest (post-reset / new run).</summary>
+        public void RestartIntroQuest()
+        {
+            // seed order first
+            for (int i = 0; i < seedOrder.Count; i++)
+            {
+                string id = seedOrder[i];
+                if (!questDatabase.TryGetValue(id, out var q) || q == null) continue;
+                if (q.status != QuestStatus.Available) continue;
+                if (!string.IsNullOrEmpty(q.prerequisiteQuestID)) continue;
+                ActivateQuest(q.questID);
+                return;
+            }
+
+            foreach (var q in questDatabase.Values)
+            {
+                if (q == null || q.status != QuestStatus.Available) continue;
+                if (!string.IsNullOrEmpty(q.prerequisiteQuestID)) continue;
+                ActivateQuest(q.questID);
+                return;
+            }
         }
 
         void SaveProgressToPrefs()

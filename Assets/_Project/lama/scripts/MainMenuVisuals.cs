@@ -4,45 +4,111 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Runtime premium layout for MainMenu — dark-gold MetaEdu identity.
-/// Layout only; OnClick wiring stays on scene buttons.
+/// Exclusive MetaEdu main-menu / pause layout.
+/// Rebuilds a clean shell; keeps OnClick on named buttons.
 /// </summary>
 public static class MainMenuVisuals
 {
+    public enum MenuMode
+    {
+        Title,
+        Pause
+    }
+
     struct BtnSpec
     {
         public string name;
         public string label;
-        public string icon; // single-glyph prefix
+        public string icon;
         public bool primary;
         public bool danger;
-        public bool secondaryGroup; // after divider
+        public bool secondaryGroup;
     }
 
     public static void Apply(Canvas canvas)
     {
         if (canvas == null) return;
-
         var scaler = canvas.GetComponent<CanvasScaler>();
         if (scaler == null) scaler = canvas.gameObject.AddComponent<CanvasScaler>();
         UITheme.ApplyStandardScaler(scaler);
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        Apply(canvas.transform, MenuMode.Title);
+    }
 
-        // Responsive card size (reference 1920x1080)
-        float cardW = Mathf.Clamp(420f, 360f, 480f);
-        float cardH = 560f;
+    public static void Apply(Transform root, MenuMode mode)
+    {
+        if (root == null) return;
 
-        BuildBackground(canvas.transform);
-        BuildBrand(canvas.transform, cardH);
-        var panelRt = BuildMenuCard(canvas.transform, cardW, cardH);
+        float cardW = 400f;
+        float cardH = mode == MenuMode.Pause ? 560f : 500f;
+
+        HideStrays(root);
+        BuildBackground(root);
+        BuildBrand(root, cardH, mode);
+        EnsureMenuPanel(root);
+        var panelRt = BuildMenuCard(root, cardW, cardH, mode);
         if (panelRt != null)
-            LayoutButtons(panelRt, canvas.transform, cardW);
-        BuildWelcomeChip(canvas.transform, cardH);
-        BuildFooter(canvas.transform);
+            LayoutButtons(panelRt, root, cardW, mode);
+        BuildWelcomeChip(root);
+        BuildFooter(root, mode);
 
-        ExclusiveUIStyler.Apply(canvas.transform);
-        StylePrimaryDanger(canvas.transform);
-        EnsureButtonFx(canvas.transform);
+        // Do NOT ExclusiveUIStyler whole tree — it fights button primary gold.
+        StylePrimaryDanger(root, mode);
+        EnsureButtonFx(root);
+        KillDecorativeRaycasts(root);
+    }
+
+    static void KillDecorativeRaycasts(Transform root)
+    {
+        string[] names =
+        {
+            "Background", "MenuTopWash", "MenuBottomWash", "MenuVignette",
+            "MenuInner", "MenuAccent", "MenuDivider", "BrandRule",
+            "Titletext", "Subtitle", "MenuCardHeader", "MenuFooterHint",
+            "MenuWelcomeChip", "ChipText", "ChipAccent", "BtnAccent"
+        };
+        for (int i = 0; i < names.Length; i++)
+        {
+            var t = FindDeep(root, names[i]);
+            if (t == null) continue;
+            var img = t.GetComponent<Image>();
+            if (img != null) img.raycastTarget = false;
+            var tmp = t.GetComponent<TMP_Text>();
+            if (tmp != null) tmp.raycastTarget = false;
+        }
+
+        // Full-screen leftover overlays that are not buttons
+        var vignette = FindDeep(root, "MenuVignette");
+        if (vignette != null) vignette.gameObject.SetActive(false);
+    }
+
+    static void HideStrays(Transform root)
+    {
+        // Deactivate unknown top-level / deep junk that clutters exclusive menu
+        // (scene leftovers, old labels, pause title, etc.)
+        var pauseTitle = FindDeep(root, "PauseTitle");
+        if (pauseTitle != null) pauseTitle.gameObject.SetActive(false);
+
+        // Hide bare "Text (TMP)" not under a button
+        HideOrphanLabels(root);
+    }
+
+    static void HideOrphanLabels(Transform root)
+    {
+        var tmps = root.GetComponentsInChildren<TMP_Text>(true);
+        for (int i = 0; i < tmps.Length; i++)
+        {
+            var t = tmps[i];
+            if (t == null) continue;
+            if (t.GetComponentInParent<Button>() != null) continue;
+            string n = t.gameObject.name;
+            if (n == "Titletext" || n == "Subtitle" || n == "MenuCardHeader"
+                || n == "MenuFooterHint" || n == "ChipText"
+                || n.IndexOf("Chip", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                continue;
+            if (n.StartsWith("Text") || n == "Text (TMP)" || n == "Text")
+                t.gameObject.SetActive(false);
+        }
     }
 
     static void BuildBackground(Transform canvasRoot)
@@ -57,56 +123,43 @@ public static class MainMenuVisuals
         Stretch(bg as RectTransform);
         bg.SetAsFirstSibling();
         var img = bg.GetComponent<Image>() ?? bg.gameObject.AddComponent<Image>();
-        img.color = UITheme.BgDeep;
+        img.color = new Color(0.03f, 0.025f, 0.045f, 1f);
+        // Must not steal clicks from menu buttons
         img.raycastTarget = false;
 
-        // Gradient-ish strips (top gold wash + bottom depth) — flat images, cheap
-        EnsureStrip(canvasRoot, "MenuTopWash", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, 0f), new Vector2(0f, 220f), new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.06f), 1);
-        EnsureStrip(canvasRoot, "MenuBottomWash", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-            new Vector2(0f, 0f), new Vector2(0f, 180f), new Color(0f, 0f, 0f, 0.35f), 2);
-
-        EnsureStrip(canvasRoot, "MenuVignette", Vector2.zero, Vector2.one,
-            Vector2.zero, Vector2.zero, new Color(0.02f, 0.015f, 0.03f, 0.28f), 3);
+        EnsureStrip(canvasRoot, "MenuTopWash",
+            new Vector2(0f, 1f), new Vector2(1f, 1f),
+            new Vector2(0f, 0f), new Vector2(0f, 200f),
+            new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.07f), 1, top: true);
+        EnsureStrip(canvasRoot, "MenuBottomWash",
+            new Vector2(0f, 0f), new Vector2(1f, 0f),
+            new Vector2(0f, 0f), new Vector2(0f, 160f),
+            new Color(0f, 0f, 0f, 0.4f), 2, top: false);
     }
 
     static void EnsureStrip(Transform parent, string name, Vector2 aMin, Vector2 aMax,
-        Vector2 offsetMin, Vector2 sizeOrOffsetMax, Color color, int sibling)
+        Vector2 _, Vector2 size, Color color, int sibling, bool top)
     {
         Transform t = parent.Find(name);
-        GameObject go;
-        if (t == null)
-        {
-            go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-        }
-        else go = t.gameObject;
+        GameObject go = t != null ? t.gameObject : new GameObject(name, typeof(RectTransform));
+        if (t == null) go.transform.SetParent(parent, false);
 
         var rt = go.GetComponent<RectTransform>();
-        rt.anchorMin = aMin;
-        rt.anchorMax = aMax;
-        if (aMin == Vector2.zero && aMax == Vector2.one)
+        if (top)
         {
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-        }
-        else if (aMin.y >= 0.99f)
-        {
-            rt.pivot = new Vector2(0.5f, 1f);
-            rt.anchoredPosition = Vector2.zero;
-            rt.sizeDelta = sizeOrOffsetMax;
-            // stretch width
             rt.anchorMin = new Vector2(0f, 1f);
             rt.anchorMax = new Vector2(1f, 1f);
-            rt.sizeDelta = new Vector2(0f, sizeOrOffsetMax.y);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = new Vector2(0f, size.y);
         }
-        else if (aMin.y <= 0.01f && aMax.y <= 0.01f)
+        else
         {
             rt.anchorMin = new Vector2(0f, 0f);
             rt.anchorMax = new Vector2(1f, 0f);
             rt.pivot = new Vector2(0.5f, 0f);
             rt.anchoredPosition = Vector2.zero;
-            rt.sizeDelta = new Vector2(0f, sizeOrOffsetMax.y);
+            rt.sizeDelta = new Vector2(0f, size.y);
         }
 
         var img = go.GetComponent<Image>() ?? go.AddComponent<Image>();
@@ -115,24 +168,23 @@ public static class MainMenuVisuals
         go.transform.SetSiblingIndex(Mathf.Min(sibling, parent.childCount - 1));
     }
 
-    static void BuildBrand(Transform canvasRoot, float cardH)
+    static void BuildBrand(Transform canvasRoot, float cardH, MenuMode mode)
     {
-        // Brand sits above card center
-        float brandY = cardH * 0.5f + 78f;
+        // Brand above card: card center at -20, height cardH → top of card ≈ cardH/2 - 20
+        float brandY = cardH * 0.5f + 36f;
 
-        StyleTitle(canvasRoot, "Titletext", "METAEDU WORLD", 44f,
-            new Vector2(0f, brandY), soft: false);
-        StyleTitle(canvasRoot, "Subtitle", "Virtual Learning · Teknik Informatika", 15f,
-            new Vector2(0f, brandY - 42f), soft: true);
-
-        // Thin gold rule under brand
-        EnsureBrandRule(canvasRoot, brandY - 58f);
+        StyleTitle(canvasRoot, "Titletext", "METAEDU", 42f,
+            new Vector2(0f, brandY + 18f), soft: false);
+        StyleTitle(canvasRoot, "Subtitle",
+            mode == MenuMode.Pause ? "Permainan dijeda" : "WORLD  ·  Virtual Campus",
+            14f, new Vector2(0f, brandY - 22f), soft: true);
+        EnsureBrandRule(canvasRoot, brandY - 40f);
     }
 
     static void EnsureBrandRule(Transform canvasRoot, float y)
     {
         const string name = "BrandRule";
-        Transform t = canvasRoot.Find(name);
+        Transform t = canvasRoot.Find(name) ?? FindDeep(canvasRoot, name);
         GameObject go = t != null ? t.gameObject : new GameObject(name, typeof(RectTransform));
         if (t == null) go.transform.SetParent(canvasRoot, false);
 
@@ -140,13 +192,21 @@ public static class MainMenuVisuals
         rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
         rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = new Vector2(0f, y);
-        rt.sizeDelta = new Vector2(120f, 2f);
+        rt.sizeDelta = new Vector2(72f, 2f);
         var img = go.GetComponent<Image>() ?? go.AddComponent<Image>();
-        img.color = new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.55f);
+        img.color = new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.7f);
         img.raycastTarget = false;
     }
 
-    static RectTransform BuildMenuCard(Transform canvasRoot, float w, float h)
+    static void EnsureMenuPanel(Transform root)
+    {
+        if (FindDeep(root, "Menupanel") != null || FindDeep(root, "MenuPanel") != null)
+            return;
+        var go = new GameObject("Menupanel", typeof(RectTransform), typeof(Image));
+        go.transform.SetParent(root, false);
+    }
+
+    static RectTransform BuildMenuCard(Transform canvasRoot, float w, float h, MenuMode mode)
     {
         var panel = FindDeep(canvasRoot, "Menupanel") ?? FindDeep(canvasRoot, "MenuPanel");
         if (panel == null) return null;
@@ -154,24 +214,23 @@ public static class MainMenuVisuals
         var panelRt = panel as RectTransform;
         panelRt.anchorMin = panelRt.anchorMax = new Vector2(0.5f, 0.5f);
         panelRt.pivot = new Vector2(0.5f, 0.5f);
-        panelRt.anchoredPosition = new Vector2(0f, -36f);
+        panelRt.anchoredPosition = new Vector2(0f, -28f);
         panelRt.sizeDelta = new Vector2(w, h);
+        panelRt.localScale = Vector3.one;
+        panel.gameObject.SetActive(true);
 
         var pimg = panel.GetComponent<Image>() ?? panel.gameObject.AddComponent<Image>();
         pimg.color = UITheme.PanelDark;
         pimg.raycastTarget = true;
 
+        // Clean mask/outline
         if (panel.GetComponent<RectMask2D>() == null)
             panel.gameObject.AddComponent<RectMask2D>();
-
-        EnsureOutline(panel.gameObject, UITheme.Gold, 1.8f);
-        EnsureAccent(panel, "MenuAccent", 4f);
-
-        // Inner surface for depth
+        EnsureOutline(panel.gameObject, UITheme.Gold, 1.6f);
+        EnsureAccent(panel, "MenuAccent", 3f);
         EnsureInner(panel, "MenuInner");
-
-        // Section header inside card
-        EnsureCardHeader(panel, "MenuCardHeader", "MENU UTAMA");
+        EnsureCardHeader(panel, "MenuCardHeader",
+            mode == MenuMode.Pause ? "MENU" : "MENU UTAMA");
 
         return panelRt;
     }
@@ -186,8 +245,8 @@ public static class MainMenuVisuals
         var rt = go.GetComponent<RectTransform>();
         rt.anchorMin = Vector2.zero;
         rt.anchorMax = Vector2.one;
-        rt.offsetMin = new Vector2(12f, 12f);
-        rt.offsetMax = new Vector2(-12f, -48f);
+        rt.offsetMin = new Vector2(10f, 10f);
+        rt.offsetMax = new Vector2(-10f, -44f);
         var img = go.GetComponent<Image>() ?? go.AddComponent<Image>();
         img.color = UITheme.CardInner;
         img.raycastTarget = false;
@@ -216,48 +275,72 @@ public static class MainMenuVisuals
         tmp.fontStyle = FontStyles.Bold;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.raycastTarget = false;
-        UITheme.FitText(tmp, 13f, false);
+        tmp.enableAutoSizing = false;
+        tmp.fontSize = 13f;
+        tmp.characterSpacing = 6f;
 
         rt.anchorMin = new Vector2(0f, 1f);
         rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot = new Vector2(0.5f, 1f);
-        rt.anchoredPosition = new Vector2(0f, -18f);
-        rt.sizeDelta = new Vector2(-32f, 22f);
+        rt.anchoredPosition = new Vector2(0f, -14f);
+        rt.sizeDelta = new Vector2(-28f, 22f);
     }
 
-    static void LayoutButtons(RectTransform panel, Transform canvasRoot, float cardW)
+    static void LayoutButtons(RectTransform panel, Transform canvasRoot, float cardW, MenuMode mode)
     {
-        var specs = new List<BtnSpec>
-        {
-            new BtnSpec { name = "StartButton", label = "MULAI PETUALANGAN", icon = "▶", primary = true },
-            new BtnSpec { name = "LeaderBoardButton", label = "LEADERBOARD", icon = "★" },
-            new BtnSpec { name = "SettingButton", label = "PROFIL", icon = "●" },
-            new BtnSpec { name = "HelpButton", label = "BANTUAN", icon = "?" },
-            new BtnSpec { name = "reset", label = "RESET PROGRES", icon = "↺", danger = true, secondaryGroup = true },
-            new BtnSpec { name = "ExitButton", label = "KELUAR", icon = "✕", secondaryGroup = true },
-        };
+        // ASCII-only labels — LiberationSans SDF has no ▶★↺✕ glyphs
+        List<BtnSpec> specs = mode == MenuMode.Pause
+            ? new List<BtnSpec>
+            {
+                new BtnSpec { name = "StartButton", label = "LANJUTKAN", icon = "", primary = true },
+                new BtnSpec { name = "LeaderBoardButton", label = "LEADERBOARD", icon = "" },
+                new BtnSpec { name = "SettingButton", label = "PROFIL", icon = "" },
+                new BtnSpec { name = "HelpButton", label = "BANTUAN", icon = "" },
+                new BtnSpec { name = "MainMenuButton", label = "MENU UTAMA", icon = "" },
+                new BtnSpec { name = "reset", label = "RESET PROGRES", icon = "", danger = true, secondaryGroup = true },
+                new BtnSpec { name = "ExitButton", label = "KELUAR", icon = "", secondaryGroup = true },
+            }
+            : new List<BtnSpec>
+            {
+                new BtnSpec { name = "StartButton", label = "MULAI PETUALANGAN", icon = "", primary = true },
+                new BtnSpec { name = "LeaderBoardButton", label = "LEADERBOARD", icon = "" },
+                new BtnSpec { name = "SettingButton", label = "PROFIL", icon = "" },
+                new BtnSpec { name = "HelpButton", label = "BANTUAN", icon = "" },
+                new BtnSpec { name = "reset", label = "RESET PROGRES", icon = "", danger = true, secondaryGroup = true },
+                new BtnSpec { name = "ExitButton", label = "KELUAR", icon = "", secondaryGroup = true },
+            };
 
-        float btnW = Mathf.Min(cardW - 64f, 340f);
-        float hPrimary = 56f;
-        float hNormal = 48f;
-        float gap = 12f;
-        float top = -56f;
+        float btnW = Mathf.Min(cardW - 56f, 320f);
+        float hPrimary = 52f;
+        float hNormal = 44f;
+        float gap = 10f;
+        float top = -48f;
 
-        // Divider between main actions and utility
-        EnsureDivider(panel, "MenuDivider", -56f - hPrimary - gap - (hNormal + gap) * 3f + 6f);
+        int mainCount = 0;
+        for (int i = 0; i < specs.Count; i++)
+            if (!specs[i].secondaryGroup) mainCount++;
+
+        float divY = -48f - hPrimary - gap - (hNormal + gap) * (mainCount - 1) + 4f;
+        EnsureDivider(panel, "MenuDivider", divY, btnW);
+
+        // Hide non-spec buttons under panel
+        HideUnknownButtons(panel, specs);
 
         for (int i = 0; i < specs.Count; i++)
         {
             var s = specs[i];
             Transform t = FindDeep(panel, s.name) ?? FindDeep(canvasRoot, s.name);
-            if (t == null) continue;
+            if (t == null)
+                t = EnsureButton(panel, s.name);
 
             if (t.parent != panel)
                 t.SetParent(panel, false);
 
+            t.gameObject.SetActive(true);
+
             float h = s.primary ? hPrimary : hNormal;
             if (s.secondaryGroup && i > 0 && !specs[i - 1].secondaryGroup)
-                top -= 10f; // extra space after divider
+                top -= 12f;
 
             var rt = t as RectTransform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
@@ -265,13 +348,76 @@ public static class MainMenuVisuals
             rt.anchoredPosition = new Vector2(0f, top);
             rt.sizeDelta = new Vector2(btnW, h);
             rt.localScale = Vector3.one;
+            rt.localRotation = Quaternion.identity;
 
             ApplyButtonVisual(t.gameObject, s);
+            EnsureClickable(t.gameObject);
+
+            // Button always above decorative siblings
+            t.SetAsLastSibling();
             top -= (h + gap);
+        }
+
+        // Divider / inner behind buttons
+        var div = panel.Find("MenuDivider");
+        if (div != null) div.SetAsFirstSibling();
+        var inn = panel.Find("MenuInner");
+        if (inn != null) inn.SetAsFirstSibling();
+        var acc = panel.Find("MenuAccent");
+        if (acc != null) acc.SetAsFirstSibling();
+
+        // Auto-fit card height to content
+        float contentH = 48f + (-top) + 20f;
+        panel.sizeDelta = new Vector2(cardW, Mathf.Max(panel.sizeDelta.y, contentH));
+
+        if (mode == MenuMode.Pause)
+        {
+            var resumeLegacy = FindDeep(canvasRoot, "ResumeButton");
+            if (resumeLegacy != null)
+                resumeLegacy.gameObject.SetActive(false);
         }
     }
 
-    static void EnsureDivider(Transform panel, string name, float yFromTop)
+    static void HideUnknownButtons(Transform panel, List<BtnSpec> specs)
+    {
+        var btns = panel.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < btns.Length; i++)
+        {
+            string n = btns[i].gameObject.name;
+            bool known = false;
+            for (int s = 0; s < specs.Count; s++)
+            {
+                if (specs[s].name == n) { known = true; break; }
+            }
+            if (!known && n != "StartButton")
+            {
+                // keep nested only if parent is known button
+                if (btns[i].transform.parent == panel)
+                    btns[i].gameObject.SetActive(false);
+            }
+        }
+    }
+
+    static Transform EnsureButton(Transform parent, string name)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+        var img = go.GetComponent<Image>();
+        img.color = Color.white;
+        var btn = go.GetComponent<Button>();
+        btn.targetGraphic = img;
+
+        var textGo = new GameObject("Label", typeof(RectTransform));
+        textGo.transform.SetParent(go.transform, false);
+        var tmp = textGo.AddComponent<TextMeshProUGUI>();
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.raycastTarget = false;
+        Stretch(textGo.GetComponent<RectTransform>());
+        return go.transform;
+    }
+
+    static void EnsureDivider(Transform panel, string name, float yFromTop, float width)
     {
         Transform t = panel.Find(name);
         GameObject go = t != null ? t.gameObject : new GameObject(name, typeof(RectTransform));
@@ -281,10 +427,28 @@ public static class MainMenuVisuals
         rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
         rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = new Vector2(0f, yFromTop);
-        rt.sizeDelta = new Vector2(280f, 1f);
+        rt.sizeDelta = new Vector2(width - 24f, 1f);
         var img = go.GetComponent<Image>() ?? go.AddComponent<Image>();
-        img.color = new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.22f);
+        img.color = new Color(UITheme.Gold.r, UITheme.Gold.g, UITheme.Gold.b, 0.25f);
         img.raycastTarget = false;
+    }
+
+    static void EnsureClickable(GameObject go)
+    {
+        if (go == null) return;
+        var btn = go.GetComponent<Button>();
+        if (btn != null) btn.interactable = true;
+
+        var img = go.GetComponent<Image>();
+        if (img != null) img.raycastTarget = true;
+
+        var cg = go.GetComponent<CanvasGroup>();
+        if (cg != null)
+        {
+            cg.alpha = 1f;
+            cg.blocksRaycasts = true;
+            cg.interactable = true;
+        }
     }
 
     static void ApplyButtonVisual(GameObject go, BtnSpec s)
@@ -300,28 +464,43 @@ public static class MainMenuVisuals
         if (img != null)
         {
             img.color = Color.white;
+            img.raycastTarget = true;
             btn.targetGraphic = img;
         }
 
-        EnsureOutline(go, s.danger ? UITheme.Danger : UITheme.Gold, s.primary ? 1.7f : 1.2f);
-
-        // Left accent bar for non-primary
+        EnsureOutline(go, s.danger ? UITheme.Danger : UITheme.Gold, s.primary ? 1.5f : 1.1f);
         EnsureBtnAccent(go.transform, s.primary, s.danger);
 
-        var tmp = go.GetComponentInChildren<TMP_Text>(true);
+        // Prefer Label child; else first TMP
+        TMP_Text tmp = null;
+        var label = go.transform.Find("Label");
+        if (label != null) tmp = label.GetComponent<TMP_Text>();
+        if (tmp == null) tmp = go.GetComponentInChildren<TMP_Text>(true);
+
+        // Hide extra text children (scene often has multiple Text TMP)
+        var allTmp = go.GetComponentsInChildren<TMP_Text>(true);
+        for (int i = 0; i < allTmp.Length; i++)
+        {
+            if (allTmp[i] == tmp) continue;
+            allTmp[i].gameObject.SetActive(false);
+        }
+
         if (tmp != null)
         {
+            tmp.gameObject.SetActive(true);
             string icon = string.IsNullOrEmpty(s.icon) ? "" : s.icon + "  ";
             tmp.text = icon + s.label;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.fontStyle = FontStyles.Bold;
             tmp.color = s.primary ? UITheme.TextOnGold
-                : (s.danger ? new Color(1f, 0.75f, 0.72f) : UITheme.Cream);
-            UITheme.FitText(tmp, s.primary ? 18f : 16f, false);
+                : (s.danger ? new Color(1f, 0.78f, 0.74f) : UITheme.Cream);
+            tmp.enableAutoSizing = false;
+            tmp.fontSize = s.primary ? 17f : 15f;
+            tmp.raycastTarget = false;
             Stretch(tmp.rectTransform);
             var trt = tmp.rectTransform;
-            trt.offsetMin = new Vector2(10f, 2f);
-            trt.offsetMax = new Vector2(-10f, -2f);
+            trt.offsetMin = new Vector2(12f, 2f);
+            trt.offsetMax = new Vector2(-12f, -2f);
         }
     }
 
@@ -340,8 +519,8 @@ public static class MainMenuVisuals
         go.SetActive(true);
 
         var rt = go.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0f, 0f);
-        rt.anchorMax = new Vector2(0f, 1f);
+        rt.anchorMin = new Vector2(0f, 0.15f);
+        rt.anchorMax = new Vector2(0f, 0.85f);
         rt.pivot = new Vector2(0f, 0.5f);
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = new Vector2(3f, 0f);
@@ -350,15 +529,17 @@ public static class MainMenuVisuals
         img.raycastTarget = false;
     }
 
-    static void StylePrimaryDanger(Transform root)
+    static void StylePrimaryDanger(Transform root, MenuMode mode)
     {
-        // Re-apply after ExclusiveUIStyler so primary gold survives
-        ReStyle(root, "StartButton", "▶  MULAI PETUALANGAN", true, false);
-        ReStyle(root, "LeaderBoardButton", "★  LEADERBOARD", false, false);
-        ReStyle(root, "SettingButton", "●  PROFIL", false, false);
-        ReStyle(root, "HelpButton", "?  BANTUAN", false, false);
-        ReStyle(root, "reset", "↺  RESET PROGRES", false, true);
-        ReStyle(root, "ExitButton", "✕  KELUAR", false, false);
+        string startLabel = mode == MenuMode.Pause ? "LANJUTKAN" : "MULAI PETUALANGAN";
+        ReStyle(root, "StartButton", startLabel, true, false);
+        ReStyle(root, "LeaderBoardButton", "LEADERBOARD", false, false);
+        ReStyle(root, "SettingButton", "PROFIL", false, false);
+        ReStyle(root, "HelpButton", "BANTUAN", false, false);
+        if (mode == MenuMode.Pause)
+            ReStyle(root, "MainMenuButton", "MENU UTAMA", false, false);
+        ReStyle(root, "reset", "RESET PROGRES", false, true);
+        ReStyle(root, "ExitButton", "KELUAR", false, false);
     }
 
     static void ReStyle(Transform root, string name, string label, bool primary, bool danger)
@@ -371,68 +552,69 @@ public static class MainMenuVisuals
             btn.transition = Selectable.Transition.ColorTint;
             btn.colors = primary ? PrimaryColors() : (danger ? DangerColors() : SecondaryColors());
             btn.interactable = true;
+            var img = btn.targetGraphic as Image ?? t.GetComponent<Image>();
+            if (img != null) img.color = Color.white;
         }
         var tmp = t.GetComponentInChildren<TMP_Text>(true);
         if (tmp != null)
         {
+            tmp.gameObject.SetActive(true);
             tmp.text = label;
             tmp.color = primary ? UITheme.TextOnGold
-                : (danger ? new Color(1f, 0.75f, 0.72f) : UITheme.Cream);
+                : (danger ? new Color(1f, 0.78f, 0.74f) : UITheme.Cream);
             tmp.fontStyle = FontStyles.Bold;
             tmp.alignment = TextAlignmentOptions.Center;
-            UITheme.FitText(tmp, primary ? 18f : 16f, false);
+            tmp.enableAutoSizing = false;
+            tmp.fontSize = primary ? 17f : 15f;
         }
-        EnsureOutline(t.gameObject, danger ? UITheme.Danger : UITheme.Gold, primary ? 1.7f : 1.2f);
+        EnsureOutline(t.gameObject, danger ? UITheme.Danger : UITheme.Gold, primary ? 1.5f : 1.1f);
     }
 
     static void EnsureButtonFx(Transform root)
     {
         foreach (var btn in root.GetComponentsInChildren<Button>(true))
         {
+            if (!btn.gameObject.activeInHierarchy) continue;
             if (btn.GetComponent<UIButtonPressFx>() == null)
                 btn.gameObject.AddComponent<UIButtonPressFx>();
         }
     }
 
-    static void BuildWelcomeChip(Transform canvasRoot, float cardH)
+    static void BuildWelcomeChip(Transform canvasRoot)
     {
         const string name = "MenuWelcomeChip";
-        Transform t = canvasRoot.Find(name);
+        Transform t = canvasRoot.Find(name) ?? FindDeep(canvasRoot, name);
         GameObject go = t != null ? t.gameObject : new GameObject(name, typeof(RectTransform));
         if (t == null) go.transform.SetParent(canvasRoot, false);
+        go.SetActive(true);
 
         var rt = go.GetComponent<RectTransform>();
-        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = new Vector2(0f, cardH * 0.5f + 12f);
-        // sits between brand rule and card — actually place top-left as profile chip
         rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
         rt.pivot = new Vector2(0f, 1f);
         rt.anchoredPosition = new Vector2(28f, -28f);
-        rt.sizeDelta = new Vector2(260f, 52f);
+        rt.sizeDelta = new Vector2(240f, 44f);
 
         var img = go.GetComponent<Image>() ?? go.AddComponent<Image>();
         img.color = UITheme.HudPanel;
         img.raycastTarget = false;
-        if (go.GetComponent<RectMask2D>() == null) go.AddComponent<RectMask2D>();
-        EnsureOutline(go, UITheme.Gold, 1.1f);
+        EnsureOutline(go, UITheme.Gold, 1f);
 
-        // accent
         Transform accT = go.transform.Find("ChipAccent");
         GameObject acc = accT != null ? accT.gameObject : new GameObject("ChipAccent", typeof(RectTransform));
         if (accT == null) acc.transform.SetParent(go.transform, false);
         var art = acc.GetComponent<RectTransform>();
-        art.anchorMin = new Vector2(0f, 0f);
-        art.anchorMax = new Vector2(0f, 1f);
+        art.anchorMin = new Vector2(0f, 0.2f);
+        art.anchorMax = new Vector2(0f, 0.8f);
         art.pivot = new Vector2(0f, 0.5f);
         art.sizeDelta = new Vector2(3f, 0f);
+        art.anchoredPosition = Vector2.zero;
         var aimg = acc.GetComponent<Image>() ?? acc.AddComponent<Image>();
         aimg.color = UITheme.Gold;
         aimg.raycastTarget = false;
 
         string player = PlayerPrefs.GetString("playerName", "Mahasiswa");
         if (string.IsNullOrWhiteSpace(player)) player = "Mahasiswa";
-        if (player.Length > 18) player = player.Substring(0, 17) + "…";
+        if (player.Length > 16) player = player.Substring(0, 15) + "…";
 
         Transform txtT = go.transform.Find("ChipText");
         TMP_Text tmp;
@@ -443,7 +625,7 @@ public static class MainMenuVisuals
             tmp = tg.AddComponent<TextMeshProUGUI>();
             txtT = tg.transform;
         }
-        else tmp = txtT.GetComponent<TMP_Text>();
+        else tmp = txtT.GetComponent<TMP_Text>() ?? txtT.gameObject.AddComponent<TextMeshProUGUI>();
 
         var trt = txtT as RectTransform;
         trt.anchorMin = Vector2.zero;
@@ -455,13 +637,14 @@ public static class MainMenuVisuals
         tmp.fontStyle = FontStyles.Bold;
         tmp.alignment = TextAlignmentOptions.MidlineLeft;
         tmp.raycastTarget = false;
-        UITheme.FitText(tmp, 15f, false);
+        tmp.enableAutoSizing = false;
+        tmp.fontSize = 14f;
     }
 
-    static void BuildFooter(Transform canvasRoot)
+    static void BuildFooter(Transform canvasRoot, MenuMode mode)
     {
         const string name = "MenuFooterHint";
-        Transform existing = canvasRoot.Find(name);
+        Transform existing = canvasRoot.Find(name) ?? FindDeep(canvasRoot, name);
         TMP_Text tmp;
         RectTransform rt;
         if (existing == null)
@@ -473,21 +656,25 @@ public static class MainMenuVisuals
         }
         else
         {
-            tmp = existing.GetComponent<TMP_Text>();
+            tmp = existing.GetComponent<TMP_Text>() ?? existing.gameObject.AddComponent<TextMeshProUGUI>();
             rt = existing as RectTransform;
+            existing.gameObject.SetActive(true);
         }
 
-        tmp.text = "Misi  ·  Kuis  ·  Leaderboard  ·  Eksplorasi Kampus";
+        tmp.text = mode == MenuMode.Pause
+            ? "ESC  ·  Lanjutkan permainan"
+            : "Misi  ·  Kuis  ·  Eksplorasi Kampus";
         tmp.color = UITheme.Muted;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.raycastTarget = false;
-        UITheme.FitText(tmp, 13f, false);
+        tmp.enableAutoSizing = false;
+        tmp.fontSize = 12f;
 
         rt.anchorMin = new Vector2(0.5f, 0f);
         rt.anchorMax = new Vector2(0.5f, 0f);
         rt.pivot = new Vector2(0.5f, 0f);
-        rt.anchoredPosition = new Vector2(0f, 32f);
-        rt.sizeDelta = new Vector2(720f, 24f);
+        rt.anchoredPosition = new Vector2(0f, 28f);
+        rt.sizeDelta = new Vector2(640f, 22f);
     }
 
     static void StyleTitle(Transform root, string name, string text, float size, Vector2 pos, bool soft)
@@ -499,8 +686,10 @@ public static class MainMenuVisuals
         if (t != null)
         {
             tmp = t.GetComponent<TMP_Text>();
+            if (tmp == null) tmp = t.gameObject.AddComponent<TextMeshProUGUI>();
             rt = t as RectTransform;
             if (t.parent != root) t.SetParent(root, false);
+            t.gameObject.SetActive(true);
         }
         else
         {
@@ -510,23 +699,19 @@ public static class MainMenuVisuals
             rt = go.GetComponent<RectTransform>();
         }
 
-        if (tmp == null)
-        {
-            if (t != null) tmp = t.gameObject.AddComponent<TextMeshProUGUI>();
-            else return;
-        }
-
         tmp.text = text;
         tmp.color = soft ? UITheme.Muted : UITheme.Gold;
         tmp.fontStyle = soft ? FontStyles.Normal : FontStyles.Bold;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.raycastTarget = false;
-        UITheme.FitText(tmp, size, false);
+        tmp.enableAutoSizing = false;
+        tmp.fontSize = size;
+        if (!soft) tmp.characterSpacing = 4f;
 
         rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
         rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = pos;
-        rt.sizeDelta = new Vector2(soft ? 780f : 900f, soft ? 28f : 58f);
+        rt.sizeDelta = new Vector2(soft ? 640f : 720f, soft ? 26f : 52f);
         rt.localScale = Vector3.one;
     }
 
@@ -593,7 +778,7 @@ public static class MainMenuVisuals
     {
         if (go == null || distance <= 0f) return;
         var outline = go.GetComponent<Outline>() ?? go.AddComponent<Outline>();
-        outline.effectColor = new Color(color.r, color.g, color.b, 0.8f);
+        outline.effectColor = new Color(color.r, color.g, color.b, 0.75f);
         outline.effectDistance = new Vector2(distance, -distance);
         outline.useGraphicAlpha = true;
     }

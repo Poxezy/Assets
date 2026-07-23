@@ -5,6 +5,8 @@ TagManager:
   serializedVersion: 2
   tags:
   - Player
+  - ClassroomDoor
+  - MainSceneDoor
   layers:
   - Default
   - TransparentFX
